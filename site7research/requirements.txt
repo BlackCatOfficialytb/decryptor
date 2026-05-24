@@ -1,0 +1,3 @@
+customtkinter
+kdl-py
+typing
