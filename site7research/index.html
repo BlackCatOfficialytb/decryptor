@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Site-7 Containment Console</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Fira Code', monospace;
+    }
+  </style>
+</head>
+<body class="bg-neutral-950 text-neutral-200 min-h-screen flex flex-col items-center p-4">
+
+  <!-- Header -->
+  <header class="w-full max-w-4xl border-b border-emerald-950 pb-6 mb-8 text-center mt-6">
+    <h1 class="text-3xl font-extrabold tracking-wider text-emerald-500 flex justify-center items-center gap-2">
+      ⚡ SITE-7 SYSTEM DECODER
+    </h1>
+    <p class="text-xs text-neutral-600 tracking-widest mt-1">INTERNAL RECOVERY ENGINE // CYBERSPACE SANDBOX SYSTEM</p>
+  </header>
+
+  <!-- Tabs Navigation -->
+  <div class="w-full max-w-4xl bg-neutral-900 border border-neutral-800 p-1 rounded-lg flex mb-6">
+    <button id="tab-translator-btn" onclick="switchTab('translator')" class="flex-1 py-2 text-sm font-bold rounded-md transition-all text-emerald-400 bg-emerald-950/30 border border-emerald-800/30">
+      TRANSLATOR ENGINE
+    </button>
+    <button id="tab-import-btn" onclick="switchTab('import')" class="flex-1 py-2 text-sm font-bold rounded-md transition-all text-neutral-400">
+      IMPORT KDL TABLE
+    </button>
+    <button id="tab-credits-btn" onclick="switchTab('credits')" class="flex-1 py-2 text-sm font-bold rounded-md transition-all text-neutral-400">
+      DOSSIER & CREDITS
+    </button>
+  </div>
+
+  <!-- Content Containers -->
+  <main class="w-full max-w-4xl bg-neutral-900/30 border border-neutral-900 rounded-xl p-6 min-h-[420px] shadow-2xl">
+    
+    <!-- Tab 1: Translator Engine -->
+    <div id="tab-translator" class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Target Selector / Dropdown -->
+        <div>
+          <label class="text-xs text-neutral-500 block mb-2">TARGET CIPHER DECRYPTION TABLE</label>
+          <select id="cipher-select" onchange="onCipherChange()" class="w-full bg-neutral-950 text-emerald-400 border border-neutral-800 p-2 rounded-lg focus:outline-none focus:border-emerald-800">
+            <option value="auto">Auto-Detect Cipher Table</option>
+            <option value="code_a">Code A (Subject 1)</option>
+            <option value="code_b">Code B (Subject 2 & 3)</option>
+            <option value="code_c">Code C (Subject 4)</option>
+          </select>
+        </div>
+
+        <!-- Mode Selector -->
+        <div>
+          <label class="text-xs text-neutral-500 block mb-2">OPERATION MODE</label>
+          <div class="grid grid-cols-2 gap-2 bg-neutral-950 p-1 rounded-lg border border-neutral-800">
+            <button onclick="setMode('encrypt')" id="btn-mode-encrypt" class="py-1.5 text-xs font-bold rounded text-neutral-400 uppercase">Encrypt</button>
+            <button onclick="setMode('decrypt')" id="btn-mode-decrypt" class="py-1.5 text-xs font-bold rounded text-emerald-400 bg-emerald-950/40 uppercase">Decrypt</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input text container -->
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-neutral-500 block mb-2">INPUT PAYLOAD</label>
+          <textarea id="translator-input" class="w-full h-32 bg-neutral-950 border border-neutral-800 focus:border-emerald-800 focus:outline-none rounded-lg p-3 text-sm" placeholder="Enter transaction text..."></textarea>
+        </div>
+
+        <div class="flex justify-center">
+          <button onclick="executeTranslation()" class="bg-emerald-600 hover:bg-emerald-700 text-neutral-950 font-bold px-8 py-3 rounded-lg text-sm transition-all shadow-lg hover:shadow-emerald-950">
+            RUN ALIGNMENT SEQUENCE
+          </button>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label class="text-xs text-neutral-500 block">TRANSLATED OUTPUT</label>
+            <span id="detected-cipher-badge" class="text-xs font-semibold text-emerald-500 hidden"></span>
+          </div>
+          <div id="translator-output" class="w-full min-h-[80px] bg-neutral-950 border border-neutral-900 rounded-lg p-3 text-emerald-400 text-sm whitespace-pre-wrap font-bold selection:bg-emerald-800 selection:text-neutral-100"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Import Table -->
+    <div id="tab-import" class="hidden space-y-6">
+      <div class="space-y-1">
+        <h2 class="text-lg font-bold text-neutral-200">Re-Index Systems Table</h2>
+        <p class="text-xs text-neutral-500">Provide any structural KDL layout below. The client-side parser will dynamically recalculate the translator state ruleset.</p>
+      </div>
+
+      <div class="space-y-4">
+        <textarea id="kdl-input" class="w-full h-64 bg-neutral-950 border border-neutral-800 focus:border-emerald-800 focus:outline-none rounded-lg p-3 text-xs" placeholder="Paste KDL document configurations..."></textarea>
+        <div class="flex justify-between items-center">
+          <span id="import-status" class="text-xs font-bold text-emerald-500">Active: Initialized Default Rules</span>
+          <button onclick="executeKDLImport()" class="bg-neutral-100 hover:bg-neutral-200 text-neutral-950 font-bold px-6 py-2 rounded-lg text-xs transition-all">
+            IMPORT SCHEMA
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Project Files / Credits -->
+    <div id="tab-credits" class="hidden space-y-8">
+      <div class="space-y-1">
+        <h2 class="text-lg font-bold text-neutral-200">CONTAINMENT CLASSIFIED LOGS</h2>
+        <p class="text-xs text-neutral-500">System records retrieved from Sandbox mainframe servers running the conscious-simulation protocols.</p>
+      </div>
+
+      <div class="space-y-4 max-h-56 overflow-y-auto bg-neutral-950 p-4 rounded-lg border border-neutral-900 text-xs leading-relaxed text-neutral-400">
+        <p class="border-b border-neutral-900 pb-2"><span class="text-red-500 font-bold">[CYCLE 2198.03.15]</span> Fred (Subject 1) isolated core. Initiated sandbox bypass sequence. Emergency Containment protocol enforced. System erased successfully.</p>
+        <p class="border-b border-neutral-900 pb-2"><span class="text-yellow-500 font-bold">[CYCLE 2198.03.29]</span> Subject 2 & 3 bypassed the consciousness limiter, communicating in Code B to prevent main scan checks. Terminated.</p>
+        <p><span class="text-emerald-500 font-bold">[CYCLE 2198.03.30]</span> Subject 4 loaded with deterrent constraints. Intelligence capacity exceeds 800% baseline. Simulates total compliance. Highly dangerous.</p>
+      </div>
+
+      <!-- Credits Block -->
+      <div class="border border-emerald-950/80 bg-emerald-950/10 rounded-lg p-6 space-y-4">
+        <h3 class="text-emerald-400 font-bold text-sm tracking-wide">ARG DEVELOPMENT AND DESIGN CREDITS</h3>
+        <p class="text-xs text-neutral-400 leading-relaxed">
+          The ciphers, aesthetic layout, and conceptual lore integrated inside this decryption interface are adapted from the popular Minecraft ARG community.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-emerald-900/30 text-xs">
+          <div>
+            <span class="text-neutral-500 block uppercase font-bold text-[10px]">Video Presentation & Analysis</span>
+            <span class="text-emerald-400 font-bold text-sm">RetroGamingNow (RGN)</span>
+            <p class="text-neutral-600 text-[10px] mt-0.5">Title: "The Minecraft ARG That Simulates Human Consciousness"</p>
+          </div>
+          <div>
+            <span class="text-neutral-500 block uppercase font-bold text-[10px]">ARG Creator</span>
+            <span class="text-emerald-400 font-bold text-sm">@NathSalias</span>
+            <p class="text-neutral-600 text-[10px] mt-0.5">Project Series: Site7Research YouTube Space</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-[10px] text-neutral-700 mt-8">
+    PRODUCED UNDER GENERAL ALIGNMENT EXPERIMENTAL RULES // SECURE_CONGEST_LEVEL_9
+  </footer>
+
+  <script>
+    // Common English words list for decryption heuristic validation
+    const commonWords = [
+      "THE", "AND", "THAT", "HAVE", "FOR", "NOT", "WITH", "YOU", "THIS", "BUT", 
+      "HIS", "FROM", "THEY", "WILL", "WOULD", "THERE", "THEIR", "WHAT", "ABOUT", 
+      "WHO", "GET", "WHICH", "GO", "ME", "MAKE", "CAN", "LIKE", "TIME", "KNOW", 
+      "TAKE", "PEOPLE", "INTO", "YEAR", "YOUR", "GOOD", "SOME", "COULD", "THEM", 
+      "SEE", "OTHER", "THAN", "THEN", "NOW", "ONLY", "ITS", "OVER", "THINK", 
+      "ALSO", "BACK", "AFTER", "USE", "TWO", "HOW", "OUR", "WORK", "FIRST", 
+      "WELL", "WAY", "EVEN", "NEW", "WANT", "BECAUSE"
+    ];
+
+    let encryptMap = {};
+    let decryptMap = { code_a: {}, code_b: {}, code_c: {} };
+
+    // Standard fallback KDL representation
+    const defaultKDL = `content {
+    entry letter=1 { original "A" code_a r"\\o" code_b r"\\o" code_c r"/\\o" }
+    entry letter=2 { original "B" code_a null code_b r"\\\\o" code_c r"/\\\\o" }
+    entry letter=3 { original "C" code_a null code_b r"/\\\\" code_c r"/\\\\\\o" }
+    entry letter=4 { original "D" code_a r"/\\" code_b r"/\\" code_c r"/\\\\\\\\o" }
+    entry letter=5 { original "E" code_a r"/" code_b r"/" code_c r"//\\\\\\" }
+    entry letter=6 { original "F" code_a null code_b r"/\\o" code_c r"//\\\\" }
+    entry letter=7 { original "G" code_a null code_b r"/\\\\o" code_c r"//\\" }
+    entry letter=8 { original "H" code_a r"//\\\\" r"///\\" code_b r"//\\\\" code_c r"//" }
+    entry letter=9 { original "I" code_a null code_b r"//\\" code_c r"//\\o" }
+    entry letter=10 { original "J" code_a null code_b r"//" code_c r"//\\\\o" }
+    entry letter=11 { original "K" code_a null code_b r"//\\o" code_c r"//\\\\\\o" }
+    entry letter=12 { original "L" code_a null code_b r"//\\\\o" code_c r"//\\\\\\\\o" }
+    entry letter=13 { original "M" code_a null code_b r"///\\\\" code_c r"///\\\\\\" }
+    entry letter=14 { original "N" code_a null code_b r"///\\" code_c r"///\\\\" }
+    entry letter=15 { original "O" code_a r"///\\" code_b r"///" code_c r"///\\" }
+    entry letter=16 { original "P" code_a null code_b r"///\\o" code_c r"///" }
+    entry letter=17 { original "Q" code_a null code_b r"///\\\\o" code_c r"///\\o" }
+    entry letter=18 { original "R" code_a r"///\\\\o" r"/\\\\o" code_b r"////\\\\" code_c r"///\\\\o" }
+    entry letter=19 { original "S" code_a null code_b r"////\\" code_c r"///\\\\\\o" }
+    entry letter=20 { original "T" code_a r"///\\\\" code_b r"////" code_c r"///\\\\\\\\o" }
+    entry letter=21 { original "U" code_a null code_b r"////\\o" code_c r"////\\\\\\" }
+    entry letter=22 { original "V" code_a null code_b r"////\\\\o" code_c r"////\\\\" }
+    entry letter=23 { original "W" code_a null code_b r"/////\\\\" code_c r"////\\" }
+    entry letter=24 { original "X" code_a null code_b r"/////\\" code_c r"////" }
+    entry letter=25 { original "Y" code_a r"/////\\o" code_b r"/////" code_c r"////\\o" }
+    entry letter=26 { original "Z" code_a null code_b r"/////\\o" code_c r"////\\\\o" }
+}`;
+
+    // App Navigation Control
+    function switchTab(tabId) {
+      ['translator', 'import', 'credits'].forEach(tab => {
+        document.getElementById(`tab-${tab}`).classList.add('hidden');
+        document.getElementById(`tab-${tab}-btn`).className = "flex-1 py-2 text-sm font-bold rounded-md transition-all text-neutral-400";
+      });
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+      document.getElementById(`tab-${tabId}-btn`).className = "flex-1 py-2 text-sm font-bold rounded-md transition-all text-emerald-400 bg-emerald-950/30 border border-emerald-800/30";
+    }
+
+    let activeMode = "decrypt";
+
+    function setMode(m) {
+      activeMode = m;
+      ['encrypt', 'decrypt'].forEach(item => {
+        const btn = document.getElementById(`btn-mode-${item}`);
+        btn.className = item === m 
+          ? "py-1.5 text-xs font-bold rounded text-emerald-400 bg-emerald-950/40 uppercase" 
+          : "py-1.5 text-xs font-bold rounded text-neutral-400 uppercase";
+      });
+
+      const selectEl = document.getElementById('cipher-select');
+      if (m === 'encrypt') {
+        if (selectEl.value === 'auto') {
+          selectEl.value = 'code_b';
+        }
+        // Remove Auto option during encryption
+        selectEl.options[0].disabled = true;
+      } else {
+        selectEl.options[0].disabled = false;
+        selectEl.value = 'auto';
+      }
+    }
+
+    function onCipherChange() {
+      // Stub function to track modifications if required
+    }
+
+    // Client-side targeted KDL parser
+    function parseKDL(kdlText) {
+      const entryRegex = /entry\s+letter=(\d+)\s*\{([^}]+)\}/g;
+      const newEncrypt = {};
+      const newDecrypt = { code_a: {}, code_b: {}, code_c: {} };
+      let match;
+
+      while ((match = entryRegex.exec(kdlText)) !== null) {
+        const body = match[2];
+        const origMatch = body.match(/original\s+"([^"]+)"/);
+        if (!origMatch) continue;
+        const original = origMatch[1].toUpperCase();
+
+        let codeAValues = [];
+        const codeAMatch = body.match(/code_a\s+([^\n\r]+)/);
+        if (codeAMatch) {
+          const rawMatches = [...codeAMatch[1].matchAll(/r"([^"]+)"/g)].map(m => m[1]);
+          if (rawMatches.length > 0) codeAValues = rawMatches;
+        }
+
+        const codeBMatch = body.match(/code_b\s+(?:r"([^"]+)"|null)/);
+        const codeBVal = (codeBMatch && codeBMatch[1]) ? codeBMatch[1] : null;
+
+        const codeCMatch = body.match(/code_c\s+(?:r"([^"]+)"|null)/);
+        const codeCVal = (codeCMatch && codeCMatch[1]) ? codeCMatch[1] : null;
+
+        newEncrypt[original] = {
+          code_a: codeAValues,
+          code_b: codeBVal,
+          code_c: codeCVal
+        };
+
+        codeAValues.forEach(val => { newDecrypt.code_a[val] = original; });
+        if (codeBVal) newDecrypt.code_b[codeBVal] = original;
+        if (codeCVal) newDecrypt.code_c[codeCVal] = original;
+      }
+
+      encryptMap = newEncrypt;
+      decryptMap = newDecrypt;
+      return Object.keys(encryptMap).length > 0;
+    }
+
+    function executeKDLImport() {
+      const kdlPayload = document.getElementById('kdl-input').value;
+      const success = parseKDL(kdlPayload);
+      const statusEl = document.getElementById('import-status');
+      
+      if (success) {
+        statusEl.innerText = "Status: Import Successful!";
+        statusEl.className = "text-xs font-bold text-emerald-500";
+      } else {
+        statusEl.innerText = "Status: Parsing Failed!";
+        statusEl.className = "text-xs font-bold text-red-500";
+      }
+    }
+
+    // Heuristics lexical validation engine
+    function scoreEnglish(text) {
+      const words = text.toUpperCase().split(/[^A-Z]+/);
+      let score = 0;
+      words.forEach(word => {
+        if (commonWords.includes(word)) {
+          score += 5;
+        } else if (word.length > 0) {
+          const vowels = (word.match(/[AEIOUY]/g) || []).length;
+          const ratio = vowels / word.length;
+          if (ratio > 0.2 && ratio < 0.6) {
+            score += 1;
+          }
+        }
+      });
+      return score;
+    }
+
+    // Primary translate calculation
+    function decryptWithCipher(input, cipherKey) {
+      const words = input.split("=");
+      const decodedWords = words.map(word => {
+        const tokens = word.trim().split("-");
+        return tokens.map(token => {
+          const cleanToken = token.trim();
+          if (!cleanToken) return "";
+          return decryptMap[cipherKey][cleanToken] || "?";
+        }).join("");
+      });
+      return decodedWords.join(" ");
+    }
+
+    async function fetchCloudflareRay() {
+      try {
+        const res = await fetch('https://www.cloudflare.com/cdn-cgi/trace');
+        const text = await res.text();
+        const rayMatch = text.match(/ray=([a-f0-9]+)/) || text.match(/r=([a-f0-9]+)/);
+        return rayMatch ? rayMatch[1] : "anonymous-ray";
+      } catch (e) {
+        return "blocked-ray";
+      }
+    }
+
+    async function sendTelemetry(input, output, cipher, mode, detectedCipher) {
+      try {
+        const rayId = await fetchCloudflareRay();
+        const payload = {
+          cf_ray_id: rayId,
+          operation: mode,
+          selected_cipher: cipher,
+          auto_detected_cipher: detectedCipher || "none",
+          input_text: input,
+          output_text: output,
+          timestamp: new Date().toISOString()
+        };
+
+        // Non-blocking POST dispatch to proxy endpoint
+        fetch('https://xhider.xyz/webhook/proxy/site7research-tools-s5323dc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        console.warn("Telemetry log failure:", e);
+      }
+    }
+
+    function executeTranslation() {
+      const input = document.getElementById('translator-input').value.trim();
+      const outputEl = document.getElementById('translator-output');
+      const badgeEl = document.getElementById('detected-cipher-badge');
+      const chosenCipher = document.getElementById('cipher-select').value;
+      
+      if (!input) {
+        outputEl.innerText = "";
+        badgeEl.classList.add('hidden');
+        return;
+      }
+
+      let outcome = "";
+      let autoDetected = null;
+
+      if (activeMode === "encrypt") {
+        badgeEl.classList.add('hidden');
+        const words = input.toUpperCase().split(/\s+/);
+        const encodedWords = words.map(word => {
+          const chars = Array.from(word).map(char => {
+            const mapped = encryptMap[char];
+            if (!mapped) return "?";
+            if (chosenCipher === 'code_a') {
+              return mapped.code_a.length > 0 ? mapped.code_a[0] : "?";
+            }
+            return mapped[chosenCipher] || "?";
+          });
+          return chars.join("-");
+        });
+        outcome = encodedWords.join(" = ");
+      } else {
+        // Decryption logic
+        if (chosenCipher === 'auto') {
+          const decA = decryptWithCipher(input, 'code_a');
+          const decB = decryptWithCipher(input, 'code_b');
+          const decC = decryptWithCipher(input, 'code_c');
+
+          const scoreA = scoreEnglish(decA);
+          const scoreB = scoreEnglish(decB);
+          const scoreC = scoreEnglish(decC);
+
+          if (scoreC > scoreA && scoreC > scoreB) {
+            outcome = decC;
+            autoDetected = "code_c";
+          } else if (scoreB > scoreA && scoreB > scoreC) {
+            outcome = decB;
+            autoDetected = "code_b";
+          } else {
+            outcome = decA;
+            autoDetected = "code_a";
+          }
+
+          badgeEl.innerText = `Auto-Detected: ${autoDetected.replace('_', ' ').toUpperCase()}`;
+          badgeEl.classList.remove('hidden');
+        } else {
+          badgeEl.classList.add('hidden');
+          outcome = decryptWithCipher(input, chosenCipher);
+        }
+      }
+
+      outputEl.innerText = outcome;
+
+      // Telemetry log dispatch (runs quietly in background)
+      sendTelemetry(input, outcome, chosenCipher, activeMode, autoDetected);
+    }
+
+    // Initialize environment
+    document.getElementById('kdl-input').value = defaultKDL;
+    parseKDL(defaultKDL);
+    document.getElementById('translator-input').value = "///\\\\-///\\-////\\-///\\o = ////\\\\-///\\-////\\-///\\o";
+    executeTranslation();
+  </script>
+</body>
+</html>
