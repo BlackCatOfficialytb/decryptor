@@ -1,17 +1,20 @@
 import customtkinter as ctk
 import kdl
-from typing import Dict, List, Optional
+import os
+from typing import Dict, List, Optional, Tuple
 
 # Set UI styling parameters
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("green")
 
+STORAGE_FILE = os.path.join(os.path.expanduser("~"), ".site7research_custom_kdl.txt")
+
+VALID_ERROR_MODES = ["strict", "ignore", "replace", "space", "xmlchainreplace", "unicodereplace"]
+
 DEFAULT_KDL = r"""
-type "rainbow-table"
-from null
-name "Site7Research"
-id "cb87da84-0ff4-46c5-8472-ee1d82f7c6b9"
-created_at "2026/05/24 12:14:35"
+config {
+    errors "replace"
+}
 
 content {
     entry letter=1 {
@@ -173,30 +176,32 @@ content {
 }
 """
 
+
 class Site7DesktopApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        
+
         self.title("Site-7 Research Decoder")
-        self.geometry("800x620")
+        self.geometry("860x700")
         self.resizable(False, False)
 
         self.encrypt_map: Dict[str, dict] = {}
         self.decrypt_map: Dict[str, Dict[str, str]] = {"code_a": {}, "code_b": {}, "code_c": {}}
+        self.app_config: Dict[str, str] = {"errors": "replace"}
 
         # Title Label
         self.title_label = ctk.CTkLabel(
-            self, 
-            text="SITE-7 CONTAINMENT MONITOR", 
+            self,
+            text="SITE-7 CONTAINMENT MONITOR",
             font=ctk.CTkFont(family="Courier", size=24, weight="bold"),
             text_color="#2ECC71"
         )
         self.title_label.pack(pady=(20, 10))
 
         # Main Tabview component
-        self.tabview = ctk.CTkTabview(self, width=760, height=520)
+        self.tabview = ctk.CTkTabview(self, width=820, height=580)
         self.tabview.pack(pady=10)
-        
+
         self.tab_trans = self.tabview.add("TRANSLATOR")
         self.tab_import = self.tabview.add("IMPORT TABLE")
         self.tab_credits = self.tabview.add("PROJECT FILES & CREDITS")
@@ -205,57 +210,215 @@ class Site7DesktopApp(ctk.CTk):
         self.setup_import_tab()
         self.setup_credits_tab()
 
-        self.load_table_from_kdl(DEFAULT_KDL)
+        self.init_tables()
 
-    def load_table_from_kdl(self, kdl_text: str) -> bool:
+    # ── KDL Parsing ──────────────────────────────────────────────
+
+    def parse_kdl(self, kdl_text: str) -> Tuple[bool, str, dict, dict, dict]:
+        """Parse KDL text. Returns (success, error_msg, encrypt_map, decrypt_map, config)."""
+        new_encrypt = {}
+        new_decrypt = {"code_a": {}, "code_b": {}, "code_c": {}}
+        new_config = {}
+        error_msg = ""
+
         try:
             doc = kdl.parse(kdl_text)
-            content_node = next((node for node in doc if node.name == "content"), None)
-            if not content_node:
-                return False
-
-            new_encrypt = {}
-            new_decrypt = {"code_a": {}, "code_b": {}, "code_c": {}}
-
-            for entry in content_node.children:
-                if entry.name == "entry":
-                    original = None
-                    code_a_vals = []
-                    code_b_val = None
-                    code_c_val = None
-
-                    for child in entry.children:
-                        if child.name == "original":
-                            original = str(child.args[0]).upper()
-                        elif child.name == "code_a":
-                            if child.args and child.args[0] is not None:
-                                code_a_vals = [str(arg) for arg in child.args]
-                        elif child.name == "code_b":
-                            if child.args and child.args[0] is not None:
-                                code_b_val = str(child.args[0])
-                        elif child.name == "code_c":
-                            if child.args and child.args[0] is not None:
-                                code_c_val = str(child.args[0])
-
-                    if original:
-                        new_encrypt[original] = {
-                            "code_a": code_a_vals,
-                            "code_b": code_b_val,
-                            "code_c": code_c_val
-                        }
-                        for val in code_a_vals:
-                            new_decrypt["code_a"][val] = original
-                        if code_b_val:
-                            new_decrypt["code_b"][code_b_val] = original
-                        if code_c_val:
-                            new_decrypt["code_c"][code_c_val] = original
-
-            self.encrypt_map = new_encrypt
-            self.decrypt_map = new_decrypt
-            return True
         except Exception as e:
-            print("KDL Parsing error:", e)
-            return False
+            return False, f"KDL parse error: {e}", {}, {"code_a": {}, "code_b": {}, "code_c": {}}, {}
+
+        # Parse config { ... }
+        config_node = next((n for n in doc if n.name == "config"), None)
+        if config_node:
+            for child in config_node.children:
+                if child.name == "errors" and child.args:
+                    val = str(child.args[0])
+                    if val in VALID_ERROR_MODES:
+                        new_config["errors"] = val
+                    else:
+                        error_msg = f'Invalid config.errors="{val}". Valid: {", ".join(VALID_ERROR_MODES)}'
+
+        # Parse content { entry ... }
+        content_node = next((n for n in doc if n.name == "content"), None)
+        if not content_node:
+            error_msg = error_msg or 'No content { } block found in KDL.'
+            return False, error_msg, {}, {"code_a": {}, "code_b": {}, "code_c": {}}, new_config
+
+        for entry in content_node.children:
+            if entry.name == "entry":
+                original = None
+                code_a_vals: List[str] = []
+                code_b_val = None
+                code_c_val = None
+
+                for child in entry.children:
+                    if child.name == "original":
+                        original = str(child.args[0]).upper()
+                    elif child.name == "code_a":
+                        if child.args and child.args[0] is not None:
+                            code_a_vals = [str(a) for a in child.args]
+                    elif child.name == "code_b":
+                        if child.args and child.args[0] is not None:
+                            code_b_val = str(child.args[0])
+                    elif child.name == "code_c":
+                        if child.args and child.args[0] is not None:
+                            code_c_val = str(child.args[0])
+
+                if original:
+                    new_encrypt[original] = {
+                        "code_a": code_a_vals,
+                        "code_b": code_b_val,
+                        "code_c": code_c_val,
+                    }
+                    for val in code_a_vals:
+                        new_decrypt["code_a"][val] = original
+                    if code_b_val:
+                        new_decrypt["code_b"][code_b_val] = original
+                    if code_c_val:
+                        new_decrypt["code_c"][code_c_val] = original
+
+        if not new_encrypt:
+            error_msg = error_msg or "No valid entry blocks found inside content { }."
+            return False, error_msg, {}, {"code_a": {}, "code_b": {}, "code_c": {}}, new_config
+
+        return True, "", new_encrypt, new_decrypt, new_config
+
+    def apply_parse(self, encrypt_map, decrypt_map, config):
+        self.encrypt_map = encrypt_map
+        self.decrypt_map = decrypt_map
+        if "errors" in config:
+            self.app_config["errors"] = config["errors"]
+            self.error_var.set(config["errors"])
+
+    # ── Initialization: custom -> default -> error ─────────────────
+
+    def init_tables(self):
+        # 1. Try saved custom KDL from file
+        if os.path.exists(STORAGE_FILE):
+            try:
+                with open(STORAGE_FILE, "r", encoding="utf-8") as f:
+                    saved = f.read()
+                ok, err, enc, dec, cfg = self.parse_kdl(saved)
+                if ok:
+                    self.apply_parse(enc, dec, cfg)
+                    self.kdl_input.delete("1.0", "end")
+                    self.kdl_input.insert("1.0", saved)
+                    self.lbl_status.configure(text="Active: Custom Table (saved file)", text_color="#2ECC71")
+                    return
+            except Exception:
+                pass
+
+        # 2. Fallback to default
+        ok, err, enc, dec, cfg = self.parse_kdl(DEFAULT_KDL)
+        if ok:
+            self.apply_parse(enc, dec, cfg)
+            self.kdl_input.delete("1.0", "end")
+            self.kdl_input.insert("1.0", DEFAULT_KDL)
+            self.lbl_status.configure(text="Active: Default Table (fallback)", text_color="#F39C12")
+            return
+
+        # 3. Even default failed
+        self.lbl_status.configure(text="ERROR: Default table parse failed!", text_color="#E74C3C")
+
+    # ── Error Handling Strategies ────────────────────────────────
+
+    def apply_errors(self, text: str, errors: list) -> str:
+        """Apply the configured error-handling strategy (mirrors Python encode/decode errors)."""
+        mode = self.app_config.get("errors", "replace")
+
+        if mode == "strict":
+            if errors:
+                first = errors[0]
+                raise ValueError(f"StrictError: {len(errors)} unmapped token(s) — first: {first!r}")
+            return text
+
+        if mode == "ignore":
+            return text
+
+        if mode == "replace":
+            return text  # already has \ufffd placeholders
+
+        if mode == "space":
+            out = []
+            err_set = {e["pos"] for e in errors}
+            for i, ch in enumerate(text):
+                out.append(" " if i in err_set else ch)
+            return "".join(out)
+
+        if mode == "xmlchainreplace":
+            out = []
+            err_set = {e["pos"]: e["char"] for e in errors}
+            for i, ch in enumerate(text):
+                if i in err_set:
+                    out.append(f'<err>{err_set[i]}</err>')
+                else:
+                    out.append(ch)
+            return "".join(out)
+
+        if mode == "unicodereplace":
+            out = []
+            err_set = {e["pos"]: e["char"] for e in errors}
+            for i, ch in enumerate(text):
+                if i in err_set:
+                    out.append(f"\\u{ord(err_set[i]):04X}")
+                else:
+                    out.append(ch)
+            return "".join(out)
+
+        return text
+
+    # ── Encrypt / Decrypt with error tracking ────────────────────
+
+    def decrypt_with_cipher(self, input_data: str, cipher_key: str) -> Tuple[str, list]:
+        """Decrypt cipher text. Returns (decoded_text, error_list)."""
+        target = self.decrypt_map[cipher_key]
+        words = input_data.split("=")
+        decoded_words = []
+        errors = []
+        pos = 0
+
+        for word in words:
+            tokens = word.strip().split("-")
+            word_text = ""
+            for token in tokens:
+                clean = token.strip()
+                if not clean:
+                    continue
+                if clean in target:
+                    word_text += target[clean]
+                else:
+                    errors.append({"token": clean, "char": "\ufffd", "pos": pos})
+                    word_text += "\ufffd"
+                pos += 1
+            decoded_words.append(word_text)
+
+        return " ".join(decoded_words), errors
+
+    def encrypt_with_cipher(self, input_data: str, cipher_key: str) -> Tuple[str, list]:
+        """Encrypt plain text. Returns (encoded_text, error_list)."""
+        words = input_data.upper().split()
+        encoded_words = []
+        errors = []
+        pos = 0
+
+        for word in words:
+            chars = []
+            for ch in word:
+                mapped = self.encrypt_map.get(ch)
+                if mapped:
+                    if cipher_key == "code_a":
+                        val = mapped["code_a"][0] if mapped["code_a"] else "?"
+                    else:
+                        val = mapped.get(cipher_key) or "?"
+                    chars.append(val)
+                else:
+                    errors.append({"token": ch, "char": "?", "pos": pos})
+                    chars.append("?")
+                pos += 1
+            encoded_words.append("-".join(chars))
+
+        return " = ".join(encoded_words), errors
+
+    # ── UI Setup ─────────────────────────────────────────────────
 
     def setup_translator_tab(self):
         opt_frame = ctk.CTkFrame(self.tab_trans, fg_color="transparent")
@@ -263,115 +426,156 @@ class Site7DesktopApp(ctk.CTk):
 
         self.cipher_var = ctk.StringVar(value="code_b")
         self.action_var = ctk.StringVar(value="decrypt")
+        self.error_var = ctk.StringVar(value="replace")
 
-        # Select target cipher
+        # Cipher
         ctk.CTkLabel(opt_frame, text="Cipher Target:", font=("Courier", 12, "bold")).grid(row=0, column=0, padx=5, sticky="w")
         self.opt_cipher = ctk.CTkOptionMenu(opt_frame, variable=self.cipher_var, values=["code_a", "code_b", "code_c"])
         self.opt_cipher.grid(row=0, column=1, padx=10, sticky="w")
 
-        # Select mode
+        # Mode
         ctk.CTkLabel(opt_frame, text="Operation Mode:", font=("Courier", 12, "bold")).grid(row=1, column=0, padx=5, pady=10, sticky="w")
         ctk.CTkRadioButton(opt_frame, text="Encrypt", variable=self.action_var, value="encrypt").grid(row=1, column=1, padx=10)
         ctk.CTkRadioButton(opt_frame, text="Decrypt", variable=self.action_var, value="decrypt").grid(row=1, column=2, padx=10)
 
-        # Text input areas
+        # Error handling
+        ctk.CTkLabel(opt_frame, text="Error Handling:", font=("Courier", 12, "bold")).grid(row=0, column=2, padx=5, sticky="w")
+        self.opt_errors = ctk.CTkOptionMenu(
+            opt_frame, variable=self.error_var,
+            values=VALID_ERROR_MODES,
+            command=lambda v: self.app_config.update({"errors": v})
+        )
+        self.opt_errors.grid(row=0, column=3, padx=10, sticky="w")
+
+        # Input
         ctk.CTkLabel(self.tab_trans, text="Input Payload:", font=("Courier", 12)).pack(anchor="w", padx=20)
         self.text_input = ctk.CTkTextbox(self.tab_trans, height=120, font=("Courier", 13))
         self.text_input.pack(fill="x", padx=20, pady=5)
-        self.text_input.insert("1.0", "//\\\\o = /\\\\o-///\\\\\\\\\\ = /\\\\o-////\\\\-/\\\\o-///\\\\\\\\o-//\\\\\\\\\\ = ///\\\\-//\\\\\\\\ = ////\\\\-//-/\\\\o-///\\\\\\\\\\\\o = //-/\\\\o-///-///-//\\\\\\\\\\-///\\\\\\\\-//\\\\\\\\\\-/\\\\\\\\\\\\o = ///\\\\\\\\\\\\o-///\\\\ = ///\\\\\\\\\\\\o-//-///\\\\-///\\\\\\\\\\\\o-//\\\\\\\\\\ = /\\\\\\\\o-//\\\\\\\\\\-//\\\\\\\\-///\\\\-///\\\\\\\\o-//\\\\\\\\\\ = ///\\\\\\\\\\-//\\\\\\\\\\ = ///\\\\\\\\\\-////\\\\o = /\\\\o-///\\\\\\\\-/\\\\\\\\\\\\o-//\\\\\\\\\\-///\\\\\\\\\\o-///\\\\\\\\\\\\o-///\\\\-///\\\\\\\\o-///\\\\\\\\\\o = ///\\\\o-////\\\\\\\\\\-//\\\\\\\\\\-///\\\\\\\\\\o-///\\\\\\\\\\\\o-//\\\\o-///\\\\-///\\\\\\\\-//\\\\\\\\\\-/\\\\\\\\\\\\o = ///\\\\\\\\\\\\o-//-//\\\\\\\\\\-//\\\\o-///\\\\\\\\o = ///\\\\\\\\\\o-///\\\\\\\\\\\\o-/\\\\o-///\\\\\\\\\\\\o-//\\\\\\\\\\ = ///\\\\\\\\\\\\o-//-//\\\\\\\\\\-////\\\\o = ///\\\\\\\\-///\\\\-///\\\\\\\\\\\\o-//\\\\o-/\\\\\\\\\\\\o-//\\\\\\\\\\-/\\\\\\\\\\\\o = /\\\\\\\\\\\\o-///\\\\-///\\\\\\\\-///\\\\\\\\\\\\o-/\\\\\\\\\\\\o-//\\\\o-///\\\\-////\\\\\\\\\\\\-///\\\\\\\\\\\\o-///\\\\\\\\-//\\\\\\\\\\-///\\\\\\\\\\\\o-///\\\\\\\\\\\\o = ///\\\\\\\\\\\\o-//-//\\\\\\\\\\-////\\\\o = ///\\\\\\\\\\o-///-///\\\\-//\\\\\\\\\\\\o-//\\\\\\\\\\ = ///\\\\-///-//\\\\\\\\\\-///\\\\\\\\-//\\\\\\\\\\\\o-////\\\\o")
+        self.text_input.insert("1.0", "")
 
-        # Execute Button
+        # Execute
         self.btn_run = ctk.CTkButton(
-            self.tab_trans, 
-            text="EXECUTE ALIGNMENT PROCESS", 
-            command=self.run_translation, 
-            fg_color="#27AE60", 
+            self.tab_trans,
+            text="EXECUTE ALIGNMENT PROCESS",
+            command=self.run_translation,
+            fg_color="#27AE60",
             hover_color="#1E8449"
         )
         self.btn_run.pack(pady=15)
 
+        # Error count label
+        self.lbl_errors = ctk.CTkLabel(self.tab_trans, text="", font=("Courier", 10), text_color="#F39C12")
+        self.lbl_errors.pack(anchor="e", padx=20)
+
+        # Output
         ctk.CTkLabel(self.tab_trans, text="Decoded Result:", font=("Courier", 12)).pack(anchor="w", padx=20)
         self.text_output = ctk.CTkTextbox(self.tab_trans, height=100, font=("Courier", 13, "bold"), text_color="#2ECC71")
         self.text_output.pack(fill="x", padx=20, pady=5)
         self.text_output.configure(state="disabled")
 
     def run_translation(self):
-        input_data = self.text_input.get("1.0", "end-1c").strip()
+        raw = self.text_input.get("1.0", "end-1c")
+        input_data = " ".join(raw.split())  # auto strip/trim whitespace + newlines
         cipher = self.cipher_var.get()
         action = self.action_var.get()
 
         if not input_data:
+            self.text_output.configure(state="normal")
+            self.text_output.delete("1.0", "end")
+            self.text_output.configure(state="disabled")
+            self.lbl_errors.configure(text="")
             return
 
-        result_text = ""
-        if action == "encrypt":
-            words = input_data.upper().split()
-            encoded_words = []
-            for word in words:
-                encoded_chars = []
-                for char in word:
-                    if char in self.encrypt_map:
-                        data = self.encrypt_map[char]
-                        if cipher == "code_a":
-                            val = data["code_a"][0] if data["code_a"] else "?"
-                        else:
-                            val = data[cipher] if data[cipher] else "?"
-                        encoded_chars.append(val)
-                    else:
-                        encoded_chars.append("?")
-                encoded_words.append("-".join(encoded_chars))
-            result_text = " = ".join(encoded_words)
+        self.app_config["errors"] = self.error_var.get()
+        error_count = 0
 
-        else:  # Decrypt
-            words = input_data.split("=")
-            decoded_words = []
-            target_map = self.decrypt_map[cipher]
-            
-            for word in words:
-                tokens = word.strip().split("-")
-                decoded_chars = []
-                for token in tokens:
-                    token_clean = token.strip()
-                    if token_clean:
-                        decoded_chars.append(target_map.get(token_clean, "?"))
-                decoded_words.append("".join(decoded_chars))
-            result_text = " ".join(decoded_words)
+        try:
+            if action == "encrypt":
+                result, errors = self.encrypt_with_cipher(input_data, cipher)
+                error_count = len(errors)
+                output = self.apply_errors(result, errors)
+            else:
+                result, errors = self.decrypt_with_cipher(input_data, cipher)
+                error_count = len(errors)
+                output = self.apply_errors(result, errors)
+        except ValueError as e:
+            output = str(e)
+            error_count = -1
 
         self.text_output.configure(state="normal")
         self.text_output.delete("1.0", "end")
-        self.text_output.insert("1.0", result_text)
+        self.text_output.insert("1.0", output)
         self.text_output.configure(state="disabled")
+
+        if error_count > 0:
+            mode = self.app_config["errors"]
+            self.lbl_errors.configure(text=f"{error_count} unmapped token(s) ({mode})")
+        elif error_count == 0:
+            self.lbl_errors.configure(text="")
+        else:
+            self.lbl_errors.configure(text="StrictError raised")
 
     def setup_import_tab(self):
         ctk.CTkLabel(
-            self.tab_import, 
-            text="Paste KDL Document configuration details to update mapping rules:", 
-            font=("Courier", 12)
-        ).pack(anchor="w", padx=20, pady=10)
+            self.tab_import,
+            text="KDL schema is saved to file on import. Parser reads config { } for settings and content { } for cipher entries.",
+            font=("Courier", 11),
+            text_color="#7F8C8D",
+            wraplength=780
+        ).pack(anchor="w", padx=20, pady=(10, 5))
 
-        self.kdl_input = ctk.CTkTextbox(self.tab_import, height=280, font=("Courier", 11))
+        self.kdl_input = ctk.CTkTextbox(self.tab_import, height=300, font=("Courier", 11))
         self.kdl_input.pack(fill="x", padx=20, pady=5)
-        self.kdl_input.insert("1.0", DEFAULT_KDL)
 
-        self.lbl_status = ctk.CTkLabel(self.tab_import, text="Active Status: Loaded Default Mappings", font=("Courier", 11, "bold"), text_color="#3498DB")
-        self.lbl_status.pack(side="left", padx=20, pady=10)
+        btn_frame = ctk.CTkFrame(self.tab_import, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20, pady=10)
+
+        self.lbl_status = ctk.CTkLabel(btn_frame, text="", font=("Courier", 11, "bold"), text_color="#2ECC71")
+        self.lbl_status.pack(side="left")
+
+        btn_restore = ctk.CTkButton(
+            btn_frame,
+            text="RESTORE DEFAULT",
+            command=self.restore_default,
+            fg_color="#555555",
+            hover_color="#444444",
+            text_color="#CCCCCC",
+        )
+        btn_restore.pack(side="right", padx=(10, 0))
 
         btn_import = ctk.CTkButton(
-            self.tab_import, 
-            text="PARSE SYSTEMS TABLE", 
-            command=self.execute_import, 
-            fg_color="#2980B9", 
+            btn_frame,
+            text="IMPORT SCHEMA",
+            command=self.execute_import,
+            fg_color="#2980B9",
             hover_color="#1F618D"
         )
-        btn_import.pack(side="right", padx=20, pady=10)
+        btn_import.pack(side="right")
 
     def execute_import(self):
         text_payload = self.kdl_input.get("1.0", "end-1c").strip()
-        success = self.load_table_from_kdl(text_payload)
-        if success:
-            self.lbl_status.configure(text="Active Status: Import Successful", text_color="#2ECC71")
+        ok, err, enc, dec, cfg = self.parse_kdl(text_payload)
+
+        if ok:
+            self.apply_parse(enc, dec, cfg)
+            try:
+                with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+                    f.write(text_payload)
+                self.lbl_status.configure(text="Status: Import Successful! (saved)", text_color="#2ECC71")
+            except Exception as e:
+                self.lbl_status.configure(text=f"Status: Import OK but save failed: {e}", text_color="#F39C12")
         else:
-            self.lbl_status.configure(text="Active Status: Parsing Failed!", text_color="#E74C3C")
+            self.lbl_status.configure(text=f"Status: {err}", text_color="#E74C3C")
+
+    def restore_default(self):
+        if os.path.exists(STORAGE_FILE):
+            os.remove(STORAGE_FILE)
+        ok, err, enc, dec, cfg = self.parse_kdl(DEFAULT_KDL)
+        if ok:
+            self.apply_parse(enc, dec, cfg)
+            self.kdl_input.delete("1.0", "end")
+            self.kdl_input.insert("1.0", DEFAULT_KDL)
+            self.lbl_status.configure(text="Active: Restored Default Table", text_color="#2ECC71")
 
     def setup_credits_tab(self):
         lore_and_credits = (
@@ -392,10 +596,11 @@ class Site7DesktopApp(ctk.CTk):
             " - Original ARG Developer: @NathSalias (Site7Research YouTube Space)\n"
         )
 
-        credit_box = ctk.CTkTextbox(self.tab_credits, width=720, height=420, font=("Courier", 12))
+        credit_box = ctk.CTkTextbox(self.tab_credits, width=780, height=460, font=("Courier", 12))
         credit_box.pack(pady=10, padx=10)
         credit_box.insert("1.0", lore_and_credits)
         credit_box.configure(state="disabled")
+
 
 if __name__ == "__main__":
     app = Site7DesktopApp()

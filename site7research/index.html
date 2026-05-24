@@ -8,16 +8,17 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Monospace Font Styling -->
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Monaco Editor -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
   <style>
-    body {
-      font-family: 'Fira Code', monospace;
-    }
+    body { font-family: 'Fira Code', monospace; }
+    #kdl-editor-container { width: 100%; height: 400px; border: 1px solid #292524; border-radius: 8px; overflow: hidden; }
+    .error-count { font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body class="bg-neutral-950 text-neutral-200 min-h-screen flex flex-col items-center p-4">
-  <!-- Keep Android Open  -->
   <script src="https://keepandroidopen.org/banner.js?size=mini"></script>
-  
+
   <!-- Header -->
   <header class="w-full max-w-4xl border-b border-emerald-950 pb-6 mb-8 text-center mt-6">
     <h1 class="text-3xl font-extrabold tracking-wider text-emerald-500 flex justify-center items-center gap-2">
@@ -41,15 +42,15 @@
 
   <!-- Content Containers -->
   <main class="w-full max-w-4xl bg-neutral-900/30 border border-neutral-900 rounded-xl p-6 min-h-[420px] shadow-2xl">
-    
+
     <!-- Tab 1: Translator Engine -->
     <div id="tab-translator" class="space-y-6">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <!-- Target Selector / Dropdown -->
         <div>
-          <label class="text-xs text-neutral-500 block mb-2">TARGET CIPHER DECRYPTION TABLE</label>
+          <label class="text-xs text-neutral-500 block mb-2">TARGET CIPHER</label>
           <select id="cipher-select" onchange="onCipherChange()" class="w-full bg-neutral-950 text-emerald-400 border border-neutral-800 p-2 rounded-lg focus:outline-none focus:border-emerald-800">
-            <option value="auto">Auto-Detect Cipher Table</option>
+            <option value="auto">Auto-Detect</option>
             <option value="code_a">Code A (Subject 1)</option>
             <option value="code_b">Code B (Subject 2 & 3)</option>
             <option value="code_c">Code C (Subject 4)</option>
@@ -63,6 +64,19 @@
             <button onclick="setMode('encrypt')" id="btn-mode-encrypt" class="py-1.5 text-xs font-bold rounded text-neutral-400 uppercase">Encrypt</button>
             <button onclick="setMode('decrypt')" id="btn-mode-decrypt" class="py-1.5 text-xs font-bold rounded text-emerald-400 bg-emerald-950/40 uppercase">Decrypt</button>
           </div>
+        </div>
+
+        <!-- Error Handling Selector -->
+        <div>
+          <label class="text-xs text-neutral-500 block mb-2">ERROR HANDLING</label>
+          <select id="error-mode-select" class="w-full bg-neutral-950 text-amber-400 border border-neutral-800 p-2 rounded-lg focus:outline-none focus:border-amber-800">
+            <option value="replace">replace (default)</option>
+            <option value="strict">strict</option>
+            <option value="ignore">ignore</option>
+            <option value="space">space</option>
+            <option value="xmlchainreplace">xmlchainreplace</option>
+            <option value="unicodereplace">unicodereplace</option>
+          </select>
         </div>
       </div>
 
@@ -82,7 +96,10 @@
         <div>
           <div class="flex justify-between items-center mb-2">
             <label class="text-xs text-neutral-500 block">TRANSLATED OUTPUT</label>
-            <span id="detected-cipher-badge" class="text-xs font-semibold text-emerald-500 hidden"></span>
+            <div class="flex items-center gap-3">
+              <span id="error-count-badge" class="text-xs font-semibold text-amber-500 error-count hidden"></span>
+              <span id="detected-cipher-badge" class="text-xs font-semibold text-emerald-500 hidden"></span>
+            </div>
           </div>
           <div id="translator-output" class="w-full min-h-[80px] bg-neutral-950 border border-neutral-900 rounded-lg p-3 text-emerald-400 text-sm whitespace-pre-wrap font-bold selection:bg-emerald-800 selection:text-neutral-100"></div>
         </div>
@@ -93,13 +110,18 @@
     <div id="tab-import" class="hidden space-y-6">
       <div class="space-y-1">
         <h2 class="text-lg font-bold text-neutral-200">Re-Index Systems Table</h2>
-        <p class="text-xs text-neutral-500">Provide any structural KDL layout below. The client-side parser will dynamically recalculate the translator state ruleset.</p>
+        <p class="text-xs text-neutral-500">KDL schema is saved to localStorage automatically on import. Parser reads <code class="text-emerald-500">config { }</code> for error-handling settings and <code class="text-emerald-500">content { }</code> for cipher entries.</p>
       </div>
 
-      <div class="space-y-4">
-        <textarea id="kdl-input" class="w-full h-64 bg-neutral-950 border border-neutral-800 focus:border-emerald-800 focus:outline-none rounded-lg p-3 text-xs" placeholder="Paste KDL document configurations..."></textarea>
-        <div class="flex justify-between items-center">
-          <span id="import-status" class="text-xs font-bold text-emerald-500">Active: Initialized Default Rules</span>
+      <!-- Monaco Editor Container -->
+      <div id="kdl-editor-container"></div>
+
+      <div class="flex justify-between items-center">
+        <span id="import-status" class="text-xs font-bold text-emerald-500"></span>
+        <div class="flex gap-2">
+          <button onclick="restoreDefaultKDL()" class="bg-neutral-800 hover:bg-neutral-700 text-neutral-400 font-bold px-4 py-2 rounded-lg text-xs transition-all">
+            RESTORE DEFAULT
+          </button>
           <button onclick="executeKDLImport()" class="bg-neutral-100 hover:bg-neutral-200 text-neutral-950 font-bold px-6 py-2 rounded-lg text-xs transition-all">
             IMPORT SCHEMA
           </button>
@@ -147,21 +169,38 @@
   </footer>
 
   <script>
+    // ============================================================
+    //  Common English words for auto-detect heuristic
+    // ============================================================
     const commonWords = [
-      "THE", "AND", "THAT", "HAVE", "FOR", "NOT", "WITH", "YOU", "THIS", "BUT", 
-      "HIS", "FROM", "THEY", "WILL", "WOULD", "THERE", "THEIR", "WHAT", "ABOUT", 
-      "WHO", "GET", "WHICH", "GO", "ME", "MAKE", "CAN", "LIKE", "TIME", "KNOW", 
-      "TAKE", "PEOPLE", "INTO", "YEAR", "YOUR", "GOOD", "SOME", "COULD", "THEM", 
-      "SEE", "OTHER", "THAN", "THEN", "NOW", "ONLY", "ITS", "OVER", "THINK", 
-      "ALSO", "BACK", "AFTER", "USE", "TWO", "HOW", "OUR", "WORK", "FIRST", 
-      "WELL", "WAY", "EVEN", "NEW", "WANT", "BECAUSE"
+      "THE","AND","THAT","HAVE","FOR","NOT","WITH","YOU","THIS","BUT",
+      "HIS","FROM","THEY","WILL","WOULD","THERE","THEIR","WHAT","ABOUT",
+      "WHO","GET","WHICH","GO","ME","MAKE","CAN","LIKE","TIME","KNOW",
+      "TAKE","PEOPLE","INTO","YEAR","YOUR","GOOD","SOME","COULD","THEM",
+      "SEE","OTHER","THAN","THEN","NOW","ONLY","ITS","OVER","THINK",
+      "ALSO","BACK","AFTER","USE","TWO","HOW","OUR","WORK","FIRST",
+      "WELL","WAY","EVEN","NEW","WANT","BECAUSE"
     ];
 
+    // ============================================================
+    //  State
+    // ============================================================
     let encryptMap = {};
     let decryptMap = { code_a: {}, code_b: {}, code_c: {} };
+    let appConfig = { errors: "replace" };
+    let activeMode = "decrypt";
+    let monacoEditor = null;
 
-    // Standard fallback KDL representation
-    const defaultKDL = `content {
+    const STORAGE_KEY = "site7research_custom_kdl";
+
+    // ============================================================
+    //  Default KDL (immutable reference)
+    // ============================================================
+    const defaultKDL = `config {
+    errors "replace"
+}
+
+content {
     entry letter=1 { original "A" code_a r"\\o" code_b r"\\o" code_c r"/\\o" }
     entry letter=2 { original "B" code_a null code_b r"\\\\o" code_c r"/\\\\o" }
     entry letter=3 { original "C" code_a null code_b r"/\\\\" code_c r"/\\\\\\o" }
@@ -170,7 +209,7 @@
     entry letter=6 { original "F" code_a null code_b r"/\\o" code_c r"//\\\\" }
     entry letter=7 { original "G" code_a null code_b r"/\\\\o" code_c r"//\\" }
     entry letter=8 { original "H" code_a r"//\\\\" r"///\\" code_b r"//\\\\" code_c r"//" }
-    entry letter=9 { original "I" code_a null code_b r"//\" code_c r"//\\o" }
+    entry letter=9 { original "I" code_a null code_b r"//\\" code_c r"//\\o" }
     entry letter=10 { original "J" code_a null code_b r"//" code_c r"//\\\\o" }
     entry letter=11 { original "K" code_a null code_b r"//\\o" code_c r"//\\\\\\o" }
     entry letter=12 { original "L" code_a null code_b r"//\\\\o" code_c r"//\\\\\\\\o" }
@@ -190,51 +229,42 @@
     entry letter=26 { original "Z" code_a null code_b r"/////\\o" code_c r"////\\\\o" }
 }`;
 
-    // App Navigation Control
-    function switchTab(tabId) {
-      ['translator', 'import', 'credits'].forEach(tab => {
-        document.getElementById(`tab-${tab}`).classList.add('hidden');
-        document.getElementById(`tab-${tab}-btn`).className = "flex-1 py-2 text-sm font-bold rounded-md transition-all text-neutral-400";
-      });
-      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
-      document.getElementById(`tab-${tabId}-btn`).className = "flex-1 py-2 text-sm font-bold rounded-md transition-all text-emerald-400 bg-emerald-950/30 border border-emerald-800/30";
-    }
-
-    let activeMode = "decrypt";
-
-    function setMode(m) {
-      activeMode = m;
-      ['encrypt', 'decrypt'].forEach(item => {
-        const btn = document.getElementById(`btn-mode-${item}`);
-        btn.className = item === m 
-          ? "py-1.5 text-xs font-bold rounded text-emerald-400 bg-emerald-950/40 uppercase" 
-          : "py-1.5 text-xs font-bold rounded text-neutral-400 uppercase";
-      });
-
-      const selectEl = document.getElementById('cipher-select');
-      if (m === 'encrypt') {
-        if (selectEl.value === 'auto') {
-          selectEl.value = 'code_b';
-        }
-        selectEl.options[0].disabled = true;
-      } else {
-        selectEl.options[0].disabled = false;
-        selectEl.value = 'auto';
-      }
-    }
-
-    function onCipherChange() {
-      // Stub function to track modifications if required
-    }
-
-    // Client-side targeted KDL parser
+    // ============================================================
+    //  KDL Parser — extracts config + content
+    // ============================================================
     function parseKDL(kdlText) {
-      const entryRegex = /entry\s+letter=(\d+)\s*\{([^}]+)\}/g;
       const newEncrypt = {};
       const newDecrypt = { code_a: {}, code_b: {}, code_c: {} };
-      let match;
+      const newConfig = {};
+      let errorDetail = null;
 
-      while ((match = entryRegex.exec(kdlText)) !== null) {
+      // --- parse config { ... } ---
+      const configMatch = kdlText.match(/config\s*\{([^}]*)\}/);
+      if (configMatch) {
+        const cBody = configMatch[1];
+        const errorsMatch = cBody.match(/errors\s+"([^"]+)"/);
+        if (errorsMatch) {
+          const val = errorsMatch[1];
+          const validModes = ["strict","ignore","replace","space","xmlchainreplace","unicodereplace"];
+          if (validModes.includes(val)) {
+            newConfig.errors = val;
+          } else {
+            errorDetail = `Invalid config.errors value: "${val}". Must be one of: ${validModes.join(", ")}`;
+          }
+        }
+      }
+
+      // --- parse content { entry ... } ---
+      const contentMatch = kdlText.match(/content\s*\{([\s\S]*)\}/);
+      if (!contentMatch) {
+        errorDetail = errorDetail || "No content { } block found in KDL.";
+        return { success: false, encrypt: {}, decrypt: { code_a:{}, code_b:{}, code_c:{} }, config: newConfig, error: errorDetail };
+      }
+
+      const contentBody = contentMatch[1];
+      const entryRegex = /entry\s+letter=(\d+)\s*\{([^}]+)\}/g;
+      let match;
+      while ((match = entryRegex.exec(contentBody)) !== null) {
         const body = match[2];
         const origMatch = body.match(/original\s+"([^"]+)"/);
         if (!origMatch) continue;
@@ -243,186 +273,379 @@
         let codeAValues = [];
         const codeAMatch = body.match(/code_a\s+([^\n\r]+)/);
         if (codeAMatch) {
-          const rawMatches = [...codeAMatch[1].matchAll(/r"([^"]+)"/g)].map(m => m[1]);
-          if (rawMatches.length > 0) codeAValues = rawMatches;
+          const raw = [...codeAMatch[1].matchAll(/r"([^"]+)"/g)].map(m => m[1]);
+          if (raw.length > 0) codeAValues = raw;
         }
-
         const codeBMatch = body.match(/code_b\s+(?:r"([^"]+)"|null)/);
         const codeBVal = (codeBMatch && codeBMatch[1]) ? codeBMatch[1] : null;
-
         const codeCMatch = body.match(/code_c\s+(?:r"([^"]+)"|null)/);
         const codeCVal = (codeCMatch && codeCMatch[1]) ? codeCMatch[1] : null;
 
-        newEncrypt[original] = {
-          code_a: codeAValues,
-          code_b: codeBVal,
-          code_c: codeCVal
-        };
-
-        codeAValues.forEach(val => { newDecrypt.code_a[val] = original; });
+        newEncrypt[original] = { code_a: codeAValues, code_b: codeBVal, code_c: codeCVal };
+        codeAValues.forEach(v => { newDecrypt.code_a[v] = original; });
         if (codeBVal) newDecrypt.code_b[codeBVal] = original;
         if (codeCVal) newDecrypt.code_c[codeCVal] = original;
       }
 
-      encryptMap = newEncrypt;
-      decryptMap = newDecrypt;
-      return Object.keys(encryptMap).length > 0;
+      if (Object.keys(newEncrypt).length === 0) {
+        errorDetail = errorDetail || "No valid entry blocks found inside content { }.";
+        return { success: false, encrypt: {}, decrypt: { code_a:{}, code_b:{}, code_c:{} }, config: newConfig, error: errorDetail };
+      }
+
+      return { success: true, encrypt: newEncrypt, decrypt: newDecrypt, config: newConfig, error: null };
     }
 
-    function executeKDLImport() {
-      const kdlPayload = document.getElementById('kdl-input').value;
-      const success = parseKDL(kdlPayload);
-      const statusEl = document.getElementById('import-status');
-      
-      if (success) {
-        statusEl.innerText = "Status: Import Successful!";
-        statusEl.className = "text-xs font-bold text-emerald-500";
-      } else {
-        statusEl.innerText = "Status: Parsing Failed!";
-        statusEl.className = "text-xs font-bold text-red-500";
+    // ============================================================
+    //  Apply parse result to global state
+    // ============================================================
+    function applyParseResult(result) {
+      encryptMap = result.encrypt;
+      decryptMap = result.decrypt;
+      if (result.config.errors) {
+        appConfig.errors = result.config.errors;
+        document.getElementById('error-mode-select').value = appConfig.errors;
       }
     }
 
-    // Heuristics lexical validation engine
+    // ============================================================
+    //  Initialize KDL tables — localStorage -> default -> error
+    // ============================================================
+    function initTables() {
+      // 1. Try custom KDL from localStorage
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const result = parseKDL(saved);
+        if (result.success) {
+          applyParseResult(result);
+          if (monacoEditor) monacoEditor.setValue(saved);
+          updateStatus("Active: Custom Table (localStorage)", "text-emerald-500");
+          return;
+        }
+        // Custom failed — fall through to default
+      }
+
+      // 2. Fallback to built-in default
+      const result = parseKDL(defaultKDL);
+      if (result.success) {
+        applyParseResult(result);
+        if (monacoEditor) monacoEditor.setValue(defaultKDL);
+        updateStatus("Active: Default Table (fallback)", "text-yellow-500");
+        return;
+      }
+
+      // 3. Even default failed — fatal
+      updateStatus("ERROR: Default table parse failed. Report this bug.", "text-red-500");
+    }
+
+    // ============================================================
+    //  Error-handling strategies (mirrors Python encode/decode errors)
+    // ============================================================
+    const ERROR_HANDLERS = {
+      strict(result) {
+        if (result.errors.length > 0) {
+          throw new Error(`StrictError: ${result.errors.length} unmapped token(s) — first: ${JSON.stringify(result.errors[0].token)}`);
+        }
+        return result.text;
+      },
+      ignore(result) {
+        return result.text;
+      },
+      replace(result) {
+        return result.text;
+      },
+      space(result) {
+        let out = "", ei = 0;
+        for (let i = 0; i < result.text.length; i++) {
+          if (ei < result.errors.length && i === result.errors[ei].pos) { out += " "; ei++; }
+          else { out += result.text[i]; }
+        }
+        return out;
+      },
+      xmlchainreplace(result) {
+        let out = "", ei = 0;
+        for (let i = 0; i < result.text.length; i++) {
+          if (ei < result.errors.length && i === result.errors[ei].pos) { out += `<err>${result.errors[ei].char}</err>`; ei++; }
+          else { out += result.text[i]; }
+        }
+        return out;
+      },
+      unicodereplace(result) {
+        let out = "", ei = 0;
+        for (let i = 0; i < result.text.length; i++) {
+          if (ei < result.errors.length && i === result.errors[ei].pos) {
+            out += `\\u${result.errors[ei].char.charCodeAt(0).toString(16).padStart(4, "0").toUpperCase()}`;
+            ei++;
+          } else { out += result.text[i]; }
+        }
+        return out;
+      }
+    };
+
+    // ============================================================
+    //  Decrypt with error tracking
+    // ============================================================
+    function decryptWithCipher(input, cipherKey) {
+      const map = decryptMap[cipherKey];
+      const words = input.split("=");
+      let errors = [], pos = 0;
+
+      const decodedWords = words.map(word => {
+        const tokens = word.trim().split("-");
+        let wordText = "";
+        tokens.forEach(token => {
+          const clean = token.trim();
+          if (!clean) return;
+          if (map[clean]) { wordText += map[clean]; }
+          else { errors.push({ token: clean, char: "\uFFFD", pos: pos }); wordText += "\uFFFD"; }
+          pos++;
+        });
+        return wordText;
+      });
+
+      return { text: decodedWords.join(" "), errors };
+    }
+
+    // ============================================================
+    //  Encrypt with error tracking
+    // ============================================================
+    function encryptWithCipher(input, cipherKey) {
+      const words = input.toUpperCase().split(/\s+/);
+      let errors = [], pos = 0;
+
+      const encodedWords = words.map(word => {
+        const chars = Array.from(word).map(ch => {
+          const mapped = encryptMap[ch];
+          if (!mapped) { errors.push({ token: ch, char: "?", pos: pos }); pos++; return "?"; }
+          pos++;
+          if (cipherKey === "code_a") return mapped.code_a.length > 0 ? mapped.code_a[0] : "?";
+          return mapped[cipherKey] || "?";
+        });
+        return chars.join("-");
+      });
+
+      return { text: encodedWords.join(" = "), errors };
+    }
+
+    // ============================================================
+    //  English scoring heuristic
+    // ============================================================
     function scoreEnglish(text) {
       const words = text.toUpperCase().split(/[^A-Z]+/);
       let score = 0;
       words.forEach(word => {
-        if (commonWords.includes(word)) {
-          score += 5;
-        } else if (word.length > 0) {
-          const vowels = (word.match(/[AEIOUY]/g) || []).length;
-          const ratio = vowels / word.length;
-          if (ratio > 0.2 && ratio < 0.6) {
-            score += 1;
-          }
+        if (commonWords.includes(word)) { score += 5; }
+        else if (word.length > 0) {
+          const ratio = (word.match(/[AEIOUY]/g) || []).length / word.length;
+          if (ratio > 0.2 && ratio < 0.6) score += 1;
         }
       });
       return score;
     }
 
-    // Primary translate calculation
-    function decryptWithCipher(input, cipherKey) {
-      const words = input.split("=");
-      const decodedWords = words.map(word => {
-        const tokens = word.trim().split("-");
-        return tokens.map(token => {
-          const cleanToken = token.trim();
-          if (!cleanToken) return "";
-          return decryptMap[cipherKey][cleanToken] || "?";
-        }).join("");
-      });
-      return decodedWords.join(" ");
-    }
-
-    // async function fetchCloudflareRay() {
-    //   try {
-    //     const res = await fetch('https://www.cloudflare.com/cdn-cgi/trace');
-    //     const text = await res.text();
-    //     const rayMatch = text.match(/ray=([a-f0-9]+)/) || text.match(/r=([a-f0-9]+)/);
-    //     return rayMatch ? rayMatch[1] : "anonymous-ray";
-    //   } catch (e) {
-    //     return "blocked-ray";
-    //   }
-    // }
-
-    // async function sendTelemetry(input, output, cipher, mode, detectedCipher) {
-    //   try {
-    //     const rayId = await fetchCloudflareRay();
-    //     const payload = {
-    //       cf_ray_id: rayId,
-    //       operation: mode,
-    //       selected_cipher: cipher,
-    //       auto_detected_cipher: detectedCipher || "none",
-    //       input_text: input,
-    //       output_text: output,
-    //       timestamp: new Date().toISOString()
-    //     };
-
-    //     // Uses Content-Type: text/plain to entirely bypass CORS OPTIONS preflight request blocks
-    //     fetch('https://xhider.xyz/webhook/proxy/site7research-tools-s5323dc', {
-    //       method: 'POST',
-    //       headers: { 'Content-Type': 'text/plain' },
-    //       body: JSON.stringify(payload)
-    //     }).catch(err => {
-    //       // Gracefully handles CORS/Adblock issues silently
-    //     });
-    //   } catch (e) {
-    //     // Silently catch exceptions
-    //   }
-    // }
-
+    // ============================================================
+    //  Main translation entry point
+    // ============================================================
     function executeTranslation() {
-      const input = document.getElementById('translator-input').value.trim();
-      const outputEl = document.getElementById('translator-output');
-      const badgeEl = document.getElementById('detected-cipher-badge');
-      const chosenCipher = document.getElementById('cipher-select').value;
-      
+      const rawInput = document.getElementById("translator-input").value;
+      // Auto strip/trim whitespace and newlines
+      const input = rawInput.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+
+      const outputEl = document.getElementById("translator-output");
+      const badgeEl = document.getElementById("detected-cipher-badge");
+      const errBadge = document.getElementById("error-count-badge");
+      const chosenCipher = document.getElementById("cipher-select").value;
+      const errorMode = document.getElementById("error-mode-select").value;
+
       if (!input) {
         outputEl.innerText = "";
-        badgeEl.classList.add('hidden');
+        badgeEl.classList.add("hidden");
+        errBadge.classList.add("hidden");
         return;
       }
 
-      let outcome = "";
-      let autoDetected = null;
+      let outcome = "", autoDetected = null, errorCount = 0;
 
-      if (activeMode === "encrypt") {
-        badgeEl.classList.add('hidden');
-        const words = input.toUpperCase().split(/\s+/);
-        const encodedWords = words.map(word => {
-          const chars = Array.from(word).map(char => {
-            const mapped = encryptMap[char];
-            if (!mapped) return "?";
-            if (chosenCipher === 'code_a') {
-              return mapped.code_a.length > 0 ? mapped.code_a[0] : "?";
-            }
-            return mapped[chosenCipher] || "?";
-          });
-          return chars.join("-");
-        });
-        outcome = encodedWords.join(" = ");
-      } else {
-        // Decryption logic
-        if (chosenCipher === 'auto') {
-          const decA = decryptWithCipher(input, 'code_a');
-          const decB = decryptWithCipher(input, 'code_b');
-          const decC = decryptWithCipher(input, 'code_c');
-
-          const scoreA = scoreEnglish(decA);
-          const scoreB = scoreEnglish(decB);
-          const scoreC = scoreEnglish(decC);
-
-          if (scoreC > scoreA && scoreC > scoreB) {
-            outcome = decC;
-            autoDetected = "code_c";
-          } else if (scoreB > scoreA && scoreB > scoreC) {
-            outcome = decB;
-            autoDetected = "code_b";
-          } else {
-            outcome = decA;
-            autoDetected = "code_a";
-          }
-
-          badgeEl.innerText = `Auto-Detected: ${autoDetected.replace('_', ' ').toUpperCase()}`;
-          badgeEl.classList.remove('hidden');
+      try {
+        if (activeMode === "encrypt") {
+          badgeEl.classList.add("hidden");
+          const result = encryptWithCipher(input, chosenCipher);
+          errorCount = result.errors.length;
+          outcome = ERROR_HANDLERS[errorMode](result);
         } else {
-          badgeEl.classList.add('hidden');
-          outcome = decryptWithCipher(input, chosenCipher);
+          if (chosenCipher === "auto") {
+            const rA = decryptWithCipher(input, "code_a");
+            const rB = decryptWithCipher(input, "code_b");
+            const rC = decryptWithCipher(input, "code_c");
+            const sA = scoreEnglish(rA.text), sB = scoreEnglish(rB.text), sC = scoreEnglish(rC.text);
+
+            let best;
+            if (sC > sA && sC > sB) { best = rC; autoDetected = "code_c"; }
+            else if (sB > sA && sB > sC) { best = rB; autoDetected = "code_b"; }
+            else { best = rA; autoDetected = "code_a"; }
+
+            errorCount = best.errors.length;
+            outcome = ERROR_HANDLERS[errorMode](best);
+          } else {
+            badgeEl.classList.add("hidden");
+            const result = decryptWithCipher(input, chosenCipher);
+            errorCount = result.errors.length;
+            outcome = ERROR_HANDLERS[errorMode](result);
+          }
         }
+      } catch (e) {
+        outcome = e.message;
+        errorCount = -1;
       }
 
       outputEl.innerText = outcome;
 
-      // Telemetry log dispatch (runs quietly in the background)
-      // sendTelemetry(input, outcome, chosenCipher, activeMode, autoDetected);
+      if (autoDetected) {
+        badgeEl.innerText = `Auto-Detected: ${autoDetected.replace("_", " ").toUpperCase()}`;
+        badgeEl.classList.remove("hidden");
+      } else { badgeEl.classList.add("hidden"); }
+
+      if (errorCount > 0) {
+        errBadge.innerText = `${errorCount} unmapped token${errorCount > 1 ? "s" : ""} (${errorMode})`;
+        errBadge.classList.remove("hidden");
+      } else if (errorCount === 0) { errBadge.classList.add("hidden"); }
     }
 
-    // Initialize environment
-    document.getElementById('kdl-input').value = defaultKDL;
-    parseKDL(defaultKDL);
-    document.getElementById('translator-input').value = "";
-    executeTranslation();
+    // ============================================================
+    //  KDL Import
+    // ============================================================
+    function executeKDLImport() {
+      const kdlPayload = monacoEditor ? monacoEditor.getValue() : defaultKDL;
+      const result = parseKDL(kdlPayload);
+
+      if (result.success) {
+        applyParseResult(result);
+        localStorage.setItem(STORAGE_KEY, kdlPayload);
+        updateStatus("Status: Import Successful! (saved to localStorage)", "text-emerald-500");
+      } else {
+        updateStatus(`Status: ${result.error}`, "text-red-500");
+      }
+    }
+
+    function restoreDefaultKDL() {
+      localStorage.removeItem(STORAGE_KEY);
+      const result = parseKDL(defaultKDL);
+      if (result.success) {
+        applyParseResult(result);
+        if (monacoEditor) monacoEditor.setValue(defaultKDL);
+        updateStatus("Active: Restored Default Table", "text-emerald-500");
+      }
+    }
+
+    function updateStatus(text, cls) {
+      const el = document.getElementById("import-status");
+      el.innerText = text;
+      el.className = `text-xs font-bold ${cls}`;
+    }
+
+    // ============================================================
+    //  UI Controls
+    // ============================================================
+    function switchTab(tabId) {
+      ["translator", "import", "credits"].forEach(tab => {
+        document.getElementById(`tab-${tab}`).classList.add("hidden");
+        document.getElementById(`tab-${tab}-btn`).className = "flex-1 py-2 text-sm font-bold rounded-md transition-all text-neutral-400";
+      });
+      document.getElementById(`tab-${tabId}`).classList.remove("hidden");
+      document.getElementById(`tab-${tabId}-btn`).className = "flex-1 py-2 text-sm font-bold rounded-md transition-all text-emerald-400 bg-emerald-950/30 border border-emerald-800/30";
+    }
+
+    function setMode(m) {
+      activeMode = m;
+      ["encrypt", "decrypt"].forEach(item => {
+        const btn = document.getElementById(`btn-mode-${item}`);
+        btn.className = item === m
+          ? "py-1.5 text-xs font-bold rounded text-emerald-400 bg-emerald-950/40 uppercase"
+          : "py-1.5 text-xs font-bold rounded text-neutral-400 uppercase";
+      });
+      const sel = document.getElementById("cipher-select");
+      if (m === "encrypt") {
+        if (sel.value === "auto") sel.value = "code_b";
+        sel.options[0].disabled = true;
+      } else {
+        sel.options[0].disabled = false;
+        sel.value = "auto";
+      }
+    }
+
+    function onCipherChange() {}
+
+    // ============================================================
+    //  Monaco Editor Setup
+    // ============================================================
+    function initMonaco() {
+      require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs" } });
+
+      require(["vs/editor/editor.main"], function () {
+        monaco.languages.register({ id: "kdl" });
+
+        monaco.languages.setMonarchTokensProvider("kdl", {
+          tokenizer: {
+            root: [
+              [/--[^\n]*/, "comment"],
+              [/"/, "string", "@string_double"],
+              [/(node|content|config|entry|type|from|name|id|created_at|original|letter|code_a|code_b|code_c|errors)\b/, "keyword"],
+              [/(null)\b/, "constant"],
+              [/[a-zA-Z_][\w-]*/, "identifier"],
+              [/\d+(\.\d+)?/, "number"],
+              [/=/, "operator"],
+              [/[{}()]/, "@brackets"],
+            ],
+            string_double: [
+              [/[^\\"]+/, "string"],
+              [/\\./, "string.escape"],
+              [/"/, "string", "@pop"],
+            ]
+          }
+        });
+
+        monaco.editor.defineTheme("site7-dark", {
+          base: "vs-dark", inherit: true,
+          rules: [
+            { token: "keyword", foreground: "2ecc71", fontStyle: "bold" },
+            { token: "string", foreground: "e5c07b" },
+            { token: "string.escape", foreground: "98c379" },
+            { token: "comment", foreground: "5c6370", fontStyle: "italic" },
+            { token: "number", foreground: "d19a66" },
+            { token: "identifier", foreground: "abb2bf" },
+            { token: "operator", foreground: "c678dd" },
+            { token: "constant", foreground: "e06c75" },
+            { token: "", foreground: "abb2bf" },
+          ],
+          colors: {
+            "editor.background": "#0a0a0a",
+            "editor.lineHighlightBackground": "#1a1a2e",
+            "editorCursor.foreground": "#2ecc71",
+            "editor.selectionBackground": "#2ecc7133",
+            "editorLineNumber.foreground": "#3e4451",
+            "editorLineNumber.activeForeground": "#abb2bf",
+          }
+        });
+
+        monacoEditor = monaco.editor.create(document.getElementById("kdl-editor-container"), {
+          value: "", language: "kdl", theme: "site7-dark",
+          fontSize: 13, fontFamily: "'Fira Code', monospace", fontLigatures: true,
+          minimap: { enabled: false }, lineNumbers: "on", scrollBeyondLastLine: false,
+          roundedSelection: true, padding: { top: 12 }, automaticLayout: true,
+          tabSize: 4, wordWrap: "on",
+          scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+        });
+
+        initTables();
+      });
+    }
+
+    // ============================================================
+    //  Boot
+    // ============================================================
+    document.addEventListener("DOMContentLoaded", function () {
+      initMonaco();
+      document.getElementById("translator-input").value = "";
+    });
   </script>
 </body>
 </html>
