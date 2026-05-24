@@ -187,7 +187,7 @@
     // ============================================================
     let encryptMap = {};
     let decryptMap = { code_a: {}, code_b: {}, code_c: {} };
-    let appConfig = { errors: "replace" };
+    let appConfig = { errors: "replace", unicode_questionmark: false };
     let activeMode = "decrypt";
     let monacoEditor = null;
 
@@ -198,6 +198,7 @@
     // ============================================================
     const defaultKDL = `config {
     errors "replace"
+    unicode_questionmark false
 }
 
 content {
@@ -252,6 +253,10 @@ content {
             errorDetail = `Invalid config.errors value: "${val}". Must be one of: ${validModes.join(", ")}`;
           }
         }
+        const uqmMatch = cBody.match(/unicode_questionmark\s+(true|false)/);
+        if (uqmMatch) {
+          newConfig.unicode_questionmark = uqmMatch[1] === "true";
+        }
       }
 
       // --- parse content { entry ... } ---
@@ -304,6 +309,9 @@ content {
       if (result.config.errors) {
         appConfig.errors = result.config.errors;
         document.getElementById('error-mode-select').value = appConfig.errors;
+      }
+      if (result.config.unicode_questionmark !== undefined) {
+        appConfig.unicode_questionmark = result.config.unicode_questionmark;
       }
     }
 
@@ -388,6 +396,7 @@ content {
       const map = decryptMap[cipherKey];
       const words = input.split("=");
       let errors = [], pos = 0;
+      const placeholder = appConfig.unicode_questionmark ? "\uFFFD" : "?";
 
       const decodedWords = words.map(word => {
         const tokens = word.trim().split("-");
@@ -396,7 +405,7 @@ content {
           const clean = token.trim();
           if (!clean) return;
           if (map[clean]) { wordText += map[clean]; }
-          else { errors.push({ token: clean, char: "\uFFFD", pos: pos }); wordText += "\uFFFD"; }
+          else { errors.push({ token: clean, char: placeholder, pos: pos }); wordText += placeholder; }
           pos++;
         });
         return wordText;
@@ -411,14 +420,15 @@ content {
     function encryptWithCipher(input, cipherKey) {
       const words = input.toUpperCase().split(/\s+/);
       let errors = [], pos = 0;
+      const placeholder = appConfig.unicode_questionmark ? "\uFFFD" : "?";
 
       const encodedWords = words.map(word => {
         const chars = Array.from(word).map(ch => {
           const mapped = encryptMap[ch];
-          if (!mapped) { errors.push({ token: ch, char: "?", pos: pos }); pos++; return "?"; }
+          if (!mapped) { errors.push({ token: ch, char: placeholder, pos: pos }); pos++; return placeholder; }
           pos++;
-          if (cipherKey === "code_a") return mapped.code_a.length > 0 ? mapped.code_a[0] : "?";
-          return mapped[cipherKey] || "?";
+          if (cipherKey === "code_a") return mapped.code_a.length > 0 ? mapped.code_a[0] : placeholder;
+          return mapped[cipherKey] || placeholder;
         });
         return chars.join("-");
       });

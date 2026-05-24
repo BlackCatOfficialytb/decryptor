@@ -14,6 +14,7 @@ VALID_ERROR_MODES = ["strict", "ignore", "replace", "space", "xmlchainreplace", 
 DEFAULT_KDL = r"""
 config {
     errors "replace"
+    unicode_questionmark false
 }
 
 content {
@@ -187,7 +188,7 @@ class Site7DesktopApp(ctk.CTk):
 
         self.encrypt_map: Dict[str, dict] = {}
         self.decrypt_map: Dict[str, Dict[str, str]] = {"code_a": {}, "code_b": {}, "code_c": {}}
-        self.app_config: Dict[str, str] = {"errors": "replace"}
+        self.app_config: Dict[str, object] = {"errors": "replace", "unicode_questionmark": False}
 
         # Title Label
         self.title_label = ctk.CTkLabel(
@@ -236,6 +237,14 @@ class Site7DesktopApp(ctk.CTk):
                         new_config["errors"] = val
                     else:
                         error_msg = f'Invalid config.errors="{val}". Valid: {", ".join(VALID_ERROR_MODES)}'
+            # Parse unicode_questionmark
+            for child in config_node.children:
+                if child.name == "unicode_questionmark" and child.args:
+                    val = child.args[0]
+                    if isinstance(val, bool):
+                        new_config["unicode_questionmark"] = val
+                    elif isinstance(val, str) and val.lower() in ("true", "false"):
+                        new_config["unicode_questionmark"] = val.lower() == "true"
 
         # Parse content { entry ... }
         content_node = next((n for n in doc if n.name == "content"), None)
@@ -288,6 +297,8 @@ class Site7DesktopApp(ctk.CTk):
         if "errors" in config:
             self.app_config["errors"] = config["errors"]
             self.error_var.set(config["errors"])
+        if "unicode_questionmark" in config:
+            self.app_config["unicode_questionmark"] = config["unicode_questionmark"]
 
     # ── Initialization: custom -> default -> error ─────────────────
 
@@ -335,7 +346,8 @@ class Site7DesktopApp(ctk.CTk):
             return text
 
         if mode == "replace":
-            return text  # already has \ufffd placeholders
+            # Placeholder already baked in from encrypt/decrypt; no-op
+            return text
 
         if mode == "space":
             out = []
@@ -375,6 +387,7 @@ class Site7DesktopApp(ctk.CTk):
         decoded_words = []
         errors = []
         pos = 0
+        placeholder = "\ufffd" if self.app_config.get("unicode_questionmark", False) else "?"
 
         for word in words:
             tokens = word.strip().split("-")
@@ -386,8 +399,8 @@ class Site7DesktopApp(ctk.CTk):
                 if clean in target:
                     word_text += target[clean]
                 else:
-                    errors.append({"token": clean, "char": "\ufffd", "pos": pos})
-                    word_text += "\ufffd"
+                    errors.append({"token": clean, "char": placeholder, "pos": pos})
+                    word_text += placeholder
                 pos += 1
             decoded_words.append(word_text)
 
@@ -399,6 +412,7 @@ class Site7DesktopApp(ctk.CTk):
         encoded_words = []
         errors = []
         pos = 0
+        placeholder = "\ufffd" if self.app_config.get("unicode_questionmark", False) else "?"
 
         for word in words:
             chars = []
@@ -406,13 +420,13 @@ class Site7DesktopApp(ctk.CTk):
                 mapped = self.encrypt_map.get(ch)
                 if mapped:
                     if cipher_key == "code_a":
-                        val = mapped["code_a"][0] if mapped["code_a"] else "?"
+                        val = mapped["code_a"][0] if mapped["code_a"] else placeholder
                     else:
-                        val = mapped.get(cipher_key) or "?"
+                        val = mapped.get(cipher_key) or placeholder
                     chars.append(val)
                 else:
-                    errors.append({"token": ch, "char": "?", "pos": pos})
-                    chars.append("?")
+                    errors.append({"token": ch, "char": placeholder, "pos": pos})
+                    chars.append(placeholder)
                 pos += 1
             encoded_words.append("-".join(chars))
 
