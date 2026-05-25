@@ -392,27 +392,31 @@ class Site7DesktopApp(ctk.CTk):
         placeholder = "\ufffd" if self.app_config.get("unicode_questionmark", False) else "?"
 
         for line in lines:
-            # Split by = and dash variants (en-dash U+2013, em-dash U+2014, hyphen)
-            # Spaces within tokens are preserved — NOT used as delimiters
-            raw_tokens = re.split(r"[=\u2013\u2014-]", line)
-            decoded_chars = []
-            for token in raw_tokens:
-                trimmed = token.strip()
-                if not trimmed:
-                    continue
-                # Strip internal whitespace for map lookup (spaces are formatting in cipher text)
-                clean = re.sub(r"\s+", "", trimmed)
-                if not clean:
-                    continue
-                # Direct match first, then fallback with doubled backslashes
-                mapped_char = target.get(clean) or target.get(clean.replace("\\", "\\\\"))
-                if mapped_char:
-                    decoded_chars.append(mapped_char)
-                else:
-                    errors.append({"token": clean, "char": placeholder, "pos": pos})
-                    decoded_chars.append(placeholder)
-                pos += 1
-            decoded_lines.append(" ".join(decoded_chars))
+            # "=" separates words (space in output), dash variants separate characters within a word
+            word_groups = re.split(r"=", line)
+            decoded_words = []
+            for group in word_groups:
+                raw_tokens = re.split(r"[\u2013\u2014-]", group)
+                decoded_chars = []
+                for token in raw_tokens:
+                    trimmed = token.strip()
+                    if not trimmed:
+                        continue
+                    # Strip internal whitespace for map lookup (spaces are formatting in cipher text)
+                    clean = re.sub(r"\s+", "", trimmed)
+                    if not clean:
+                        continue
+                    # Direct match first, then fallback with doubled backslashes
+                    mapped_char = target.get(clean) or target.get(clean.replace("\\", "\\\\"))
+                    if mapped_char:
+                        decoded_chars.append(mapped_char)
+                    else:
+                        errors.append({"token": clean, "char": placeholder, "pos": pos})
+                        decoded_chars.append(placeholder)
+                    pos += 1
+                if decoded_chars:
+                    decoded_words.append("".join(decoded_chars))
+            decoded_lines.append(" ".join(decoded_words))
 
         return "\n".join(decoded_lines), errors
 
