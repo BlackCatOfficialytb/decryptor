@@ -394,24 +394,32 @@ content {
     // ============================================================
     function decryptWithCipher(input, cipherKey) {
       const map = decryptMap[cipherKey];
-      const words = input.split("=");
+      // Split into lines to preserve 2D grid structure
+      const lines = input.split(/\n/);
       let errors = [], pos = 0;
       const placeholder = appConfig.unicode_questionmark ? "\uFFFD" : "?";
 
-      const decodedWords = words.map(word => {
-        const tokens = word.trim().split("-");
-        let wordText = "";
-        tokens.forEach(token => {
-          const clean = token.trim();
-          if (!clean) return;
-          if (map[clean]) { wordText += map[clean]; }
-          else { errors.push({ token: clean, char: placeholder, pos: pos }); wordText += placeholder; }
-          pos++;
+      const decodedLines = lines.map(line => {
+        const words = line.split("=");
+        const decodedWords = words.map(word => {
+          // Split by hyphen, en-dash, em-dash, or whitespace
+          const tokens = word.trim().split(/[\s\-\u2013\u2014]+/);
+          let wordText = "";
+          tokens.forEach(token => {
+            let clean = token.trim();
+            if (!clean) return;
+            // Direct match first, then fallback with doubled backslashes (KDL parser unescape workaround)
+            const mappedChar = map[clean] || map[clean.replace(/\\/g, "\\\\")];
+            if (mappedChar) { wordText += mappedChar; }
+            else { errors.push({ token: clean, char: placeholder, pos: pos }); wordText += placeholder; }
+            pos++;
+          });
+          return wordText;
         });
-        return wordText;
+        return decodedWords.join(" ");
       });
 
-      return { text: decodedWords.join(" "), errors };
+      return { text: decodedLines.join("\n"), errors };
     }
 
     // ============================================================
@@ -457,8 +465,10 @@ content {
     // ============================================================
     function executeTranslation() {
       const rawInput = document.getElementById("translator-input").value;
-      // Auto strip/trim whitespace and newlines
-      const input = rawInput.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+      // Encrypt: strip all whitespace/newlines. Decrypt: preserve line structure for 2D grid ciphers.
+      const input = activeMode === "encrypt"
+        ? rawInput.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim()
+        : rawInput.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
 
       const outputEl = document.getElementById("translator-output");
       const badgeEl = document.getElementById("detected-cipher-badge");

@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import kdl
 import os
+import re
 from typing import Dict, List, Optional, Tuple
 
 # Set UI styling parameters
@@ -383,28 +384,36 @@ class Site7DesktopApp(ctk.CTk):
     def decrypt_with_cipher(self, input_data: str, cipher_key: str) -> Tuple[str, list]:
         """Decrypt cipher text. Returns (decoded_text, error_list)."""
         target = self.decrypt_map[cipher_key]
-        words = input_data.split("=")
-        decoded_words = []
+        # Split into lines to preserve 2D grid structure
+        lines = input_data.split("\n")
+        decoded_lines = []
         errors = []
         pos = 0
         placeholder = "\ufffd" if self.app_config.get("unicode_questionmark", False) else "?"
 
-        for word in words:
-            tokens = word.strip().split("-")
-            word_text = ""
-            for token in tokens:
-                clean = token.strip()
-                if not clean:
-                    continue
-                if clean in target:
-                    word_text += target[clean]
-                else:
-                    errors.append({"token": clean, "char": placeholder, "pos": pos})
-                    word_text += placeholder
-                pos += 1
-            decoded_words.append(word_text)
+        for line in lines:
+            words = line.split("=")
+            decoded_words = []
+            for word in words:
+                # Split by hyphen, en-dash, em-dash, or whitespace
+                tokens = re.split(r"[\s\-\u2013\u2014]+", word.strip())
+                word_text = ""
+                for token in tokens:
+                    clean = token.strip()
+                    if not clean:
+                        continue
+                    # Direct match first, then fallback with doubled backslashes
+                    mapped_char = target.get(clean) or target.get(clean.replace("\\", "\\\\"))
+                    if mapped_char:
+                        word_text += mapped_char
+                    else:
+                        errors.append({"token": clean, "char": placeholder, "pos": pos})
+                        word_text += placeholder
+                    pos += 1
+                decoded_words.append(word_text)
+            decoded_lines.append(" ".join(decoded_words))
 
-        return " ".join(decoded_words), errors
+        return "\n".join(decoded_lines), errors
 
     def encrypt_with_cipher(self, input_data: str, cipher_key: str) -> Tuple[str, list]:
         """Encrypt plain text. Returns (encoded_text, error_list)."""
@@ -489,9 +498,13 @@ class Site7DesktopApp(ctk.CTk):
 
     def run_translation(self):
         raw = self.text_input.get("1.0", "end-1c")
-        input_data = " ".join(raw.split())  # auto strip/trim whitespace + newlines
         cipher = self.cipher_var.get()
         action = self.action_var.get()
+        # Encrypt: strip all whitespace/newlines. Decrypt: preserve line structure for 2D grid ciphers.
+        if action == "encrypt":
+            input_data = " ".join(raw.split())
+        else:
+            input_data = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
 
         if not input_data:
             self.text_output.configure(state="normal")
