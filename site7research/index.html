@@ -14,6 +14,12 @@
     body { font-family: 'Fira Code', monospace; }
     #kdl-editor-container { width: 100%; height: 400px; border: 1px solid #292524; border-radius: 8px; overflow: hidden; }
     .error-count { font-variant-numeric: tabular-nums; }
+    /* Định dạng để hiển thị ASCII đều đặn và cân đối */
+    #bad-apple-screen {
+      font-family: 'Fira Code', monospace;
+      line-height: 0.95;
+      letter-spacing: -1px;
+    }
   </style>
 </head>
 <body class="bg-neutral-950 text-neutral-200 min-h-screen flex flex-col items-center p-4">
@@ -329,10 +335,9 @@ content {
           updateStatus("Active: Custom Table (localStorage)", "text-emerald-500");
           return;
         }
-        // Custom failed — fall through to default
       }
 
-      // 2. Fallback to built-in default
+      // 2. Fallback to default KDL
       const result = parseKDL(defaultKDL);
       if (result.success) {
         applyParseResult(result);
@@ -341,7 +346,7 @@ content {
         return;
       }
 
-      // 3. Even default failed — fatal
+      // 3. Fatal fallback error
       updateStatus("ERROR: Default table parse failed. Report this bug.", "text-red-500");
     }
 
@@ -394,13 +399,11 @@ content {
     // ============================================================
     function decryptWithCipher(input, cipherKey) {
       const map = decryptMap[cipherKey];
-      // Split into lines to preserve 2D grid structure
       const lines = input.split(/\n/);
       let errors = [], pos = 0;
       const placeholder = appConfig.unicode_questionmark ? "\uFFFD" : "?";
 
       const decodedLines = lines.map(line => {
-        // "=" separates words (space in output), "-" (and dash variants) separates characters within a word
         const wordGroups = line.split(/[=]/);
         const decodedWords = [];
         wordGroups.forEach(group => {
@@ -409,10 +412,8 @@ content {
           rawTokens.forEach(token => {
             const trimmed = token.trim();
             if (!trimmed) return;
-            // Strip internal whitespace for map lookup (spaces are just formatting in cipher text)
             const clean = trimmed.replace(/\s+/g, '');
             if (!clean) return;
-            // Direct match first, then fallback with doubled backslashes (KDL parser unescape workaround)
             const mappedChar = map[clean] || map[clean.replace(/\\/g, "\\\\")];
             if (mappedChar) { decodedChars.push(mappedChar); }
             else { errors.push({ token: clean, char: placeholder, pos: pos }); decodedChars.push(placeholder); }
@@ -471,7 +472,6 @@ content {
     // ============================================================
     function executeTranslation() {
       const rawInput = document.getElementById("translator-input").value;
-      // Encrypt: strip all whitespace/newlines. Decrypt: preserve line structure for 2D grid ciphers.
       const input = activeMode === "encrypt"
         ? rawInput.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim()
         : rawInput.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
@@ -534,6 +534,11 @@ content {
         errBadge.innerText = `${errorCount} unmapped token${errorCount > 1 ? "s" : ""} (${errorMode})`;
         errBadge.classList.remove("hidden");
       } else if (errorCount === 0) { errBadge.classList.add("hidden"); }
+
+      // --- Kích hoạt Easter Egg ---
+      if (activeMode === "decrypt" && outcome.trim().toUpperCase() === "BAD APPLE") {
+        triggerBadAppleEasterEgg();
+      }
     }
 
     // ============================================================
@@ -572,6 +577,9 @@ content {
     //  UI Controls
     // ============================================================
     function switchTab(tabId) {
+      if (tabId !== 'credits' && badApplePlaying) {
+        restoreCreditsTab();
+      }
       ["translator", "import", "credits"].forEach(tab => {
         document.getElementById(`tab-${tab}`).classList.add("hidden");
         document.getElementById(`tab-${tab}-btn`).className = "flex-1 py-2 text-sm font-bold rounded-md transition-all text-neutral-400";
@@ -663,6 +671,189 @@ content {
 
         initTables();
       });
+    }
+
+    // ============================================================
+    //  Real-time MP4 Canvas-to-ASCII Renderer
+    // ============================================================
+    let badApplePlaying = false;
+    let badAppleVideo = null;
+    let badAppleCanvas = null;
+    let badAppleCtx = null;
+    let badAppleAnimationId = null;
+
+    // Kích thước lưới ASCII hiển thị
+    const ASCII_WIDTH = 76;
+    const ASCII_HEIGHT = 38;
+
+    function triggerBadAppleEasterEgg() {
+      switchTab('credits');
+      
+      const creditsTab = document.getElementById('tab-credits');
+      if (!creditsTab) return;
+
+      if (!creditsTab.dataset.originalHtml) {
+        creditsTab.dataset.originalHtml = creditsTab.innerHTML;
+      }
+
+      creditsTab.innerHTML = `
+        <div class="space-y-4 text-center border border-red-900 bg-red-950/5 p-6 rounded-lg relative overflow-hidden">
+          <div class="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.15)_50%)] bg-[length:100%_4px]"></div>
+          
+          <div class="space-y-1 relative z-10">
+            <h2 class="text-xl font-extrabold text-red-500 tracking-wider flex justify-center items-center gap-2">
+              ⚠️ OVERRIDE: BAD_APPLE.EXE
+            </h2>
+            <p class="text-[10px] text-red-600 font-bold tracking-widest uppercase">REAL-TIME VIDEO STREAM TO ASCII IN PROGRESS</p>
+          </div>
+
+          <div class="relative border border-red-900 bg-black rounded-lg p-3 flex flex-col items-center justify-center min-h-[350px] z-10">
+            <!-- Màn hình ASCII -->
+            <pre id="bad-apple-screen" class="text-red-500 font-bold text-[7px] md:text-[9px] leading-[1] tracking-normal whitespace-pre overflow-hidden max-w-full select-none" style="font-family: 'Fira Code', monospace; line-height: 0.95; letter-spacing: -1px;"></pre>
+            
+            <div id="bad-apple-loading" class="text-xs text-red-400 font-bold space-y-2">
+              <div>HYDRATING VIDEO BUFFER...</div>
+              <div class="w-48 h-2 bg-neutral-900 border border-neutral-800 mx-auto rounded overflow-hidden">
+                <div id="bad-apple-bar" class="h-full bg-red-600 animate-pulse" style="width: 100%"></div>
+              </div>
+              <div id="bad-apple-pct" class="text-[10px] text-neutral-500">Connecting video stream...</div>
+            </div>
+          </div>
+
+          <div class="flex justify-center gap-4 relative z-10">
+            <button id="bad-apple-play-btn" onclick="toggleBadApplePlay()" class="bg-red-950 border border-red-800 text-red-400 px-6 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-40" disabled>
+              CONNECTING...
+            </button>
+            <button onclick="restoreCreditsTab()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 px-6 py-2 rounded-lg text-xs font-bold transition-all">
+              CLOSE PORTAL
+            </button>
+          </div>
+        </div>
+      `;
+
+      loadBadAppleResources();
+    }
+
+    function loadBadAppleResources() {
+      // Đường dẫn nguồn video (Bạn có thể thay đổi đường dẫn này thành file "bad-apple.mp4" cục bộ của bạn)
+      const videoUrl = "https://archive.org/download/bad-apple-resources/bad-apple-360p.mp4";
+
+      if (!badAppleVideo) {
+        badAppleVideo = document.createElement('video');
+        badAppleVideo.src = videoUrl;
+        badAppleVideo.crossOrigin = "anonymous";
+        badAppleVideo.playsInline = true;
+        badAppleVideo.loop = true;
+        badAppleVideo.muted = false; // Bật âm thanh
+
+        // Tạo canvas ẩn để chụp và phân tích điểm ảnh
+        badAppleCanvas = document.createElement('canvas');
+        badAppleCanvas.width = ASCII_WIDTH;
+        badAppleCanvas.height = ASCII_HEIGHT;
+        badAppleCtx = badAppleCanvas.getContext('2d', { willReadFrequently: true });
+      }
+
+      const progressPct = document.getElementById('bad-apple-pct');
+      const playBtn = document.getElementById('bad-apple-play-btn');
+
+      badAppleVideo.oncanplay = function() {
+        const loadingEl = document.getElementById('bad-apple-loading');
+        if (loadingEl) loadingEl.classList.add('hidden');
+
+        if (playBtn) {
+          playBtn.innerText = "START SIMULATION (PLAY)";
+          playBtn.disabled = false;
+          playBtn.className = "bg-red-600 hover:bg-red-700 text-neutral-950 font-extrabold px-6 py-2 rounded-lg text-xs transition-all shadow-lg hover:shadow-red-950";
+        }
+      };
+
+      badAppleVideo.onerror = function() {
+        if (progressPct) progressPct.innerText = "Error loading stream. Check connection or local file.";
+      };
+
+      // Buộc trình duyệt tiến hành tải trước luồng dữ liệu video
+      badAppleVideo.load();
+    }
+
+    function renderBadAppleFrame() {
+      if (!badApplePlaying) return;
+
+      // Vẽ khung hình video hiện tại lên canvas ẩn để giảm kích thước ảnh về lưới ASCII mong muốn
+      badAppleCtx.drawImage(badAppleVideo, 0, 0, ASCII_WIDTH, ASCII_HEIGHT);
+      
+      try {
+        const imgData = badAppleCtx.getImageData(0, 0, ASCII_WIDTH, ASCII_HEIGHT);
+        const pixels = imgData.data;
+
+        const asciiChars = ["/", "\\", "o", "-", "="];
+        let charCounter = 0;
+        let asciiFrame = "";
+
+        for (let y = 0; y < ASCII_HEIGHT; y++) {
+          for (let x = 0; x < ASCII_WIDTH; x++) {
+            const idx = (y * ASCII_WIDTH + x) * 4;
+            const r = pixels[idx];
+            const g = pixels[idx+1];
+            const b = pixels[idx+2];
+            
+            // Tính toán độ sáng của điểm ảnh (Grayscale)
+            const brightness = (r + g + b) / 3;
+
+            // Bad Apple là video đen-trắng, ngưỡng xám 120 là lý tưởng để tách vùng biên bóng đen
+            if (brightness < 120) {
+              asciiFrame += " "; // Vùng nền tối là khoảng trống
+            } else {
+              // Vùng sáng vẽ bằng các ký tự chỉ định tuần hoàn
+              asciiFrame += asciiChars[charCounter % asciiChars.length];
+              charCounter++;
+            }
+          }
+          asciiFrame += "\n";
+        }
+
+        const screen = document.getElementById('bad-apple-screen');
+        if (screen) {
+          screen.innerText = asciiFrame;
+        }
+      } catch (e) {
+        console.error("Canvas read error. Ensure proper CORS on the video URL.", e);
+      }
+
+      // Đăng ký vòng lặp khung hình tiếp theo
+      badAppleAnimationId = requestAnimationFrame(renderBadAppleFrame);
+    }
+
+    function toggleBadApplePlay() {
+      const playBtn = document.getElementById('bad-apple-play-btn');
+      if (!playBtn) return;
+
+      if (badApplePlaying) {
+        badApplePlaying = false;
+        if (badAppleAnimationId) cancelAnimationFrame(badAppleAnimationId);
+        if (badAppleVideo) badAppleVideo.pause();
+        playBtn.innerText = "RESUME";
+      } else {
+        badApplePlaying = true;
+        if (badAppleVideo) {
+          badAppleVideo.play().catch(() => console.log("Audio or video context blocked. Trying dynamic load."));
+        }
+        renderBadAppleFrame();
+        playBtn.innerText = "PAUSE";
+      }
+    }
+
+    function restoreCreditsTab() {
+      badApplePlaying = false;
+      if (badAppleAnimationId) cancelAnimationFrame(badAppleAnimationId);
+      if (badAppleVideo) {
+        badAppleVideo.pause();
+        badAppleVideo.currentTime = 0;
+      }
+
+      const creditsTab = document.getElementById('tab-credits');
+      if (creditsTab && creditsTab.dataset.originalHtml) {
+        creditsTab.innerHTML = creditsTab.dataset.originalHtml;
+      }
     }
 
     // ============================================================
