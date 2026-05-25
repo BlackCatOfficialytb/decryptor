@@ -400,23 +400,23 @@ content {
       const placeholder = appConfig.unicode_questionmark ? "\uFFFD" : "?";
 
       const decodedLines = lines.map(line => {
-        const words = line.split("=");
-        const decodedWords = words.map(word => {
-          // Split by hyphen, en-dash, em-dash, or whitespace
-          const tokens = word.trim().split(/[\s\-\u2013\u2014]+/);
-          let wordText = "";
-          tokens.forEach(token => {
-            let clean = token.trim();
-            if (!clean) return;
-            // Direct match first, then fallback with doubled backslashes (KDL parser unescape workaround)
-            const mappedChar = map[clean] || map[clean.replace(/\\/g, "\\\\")];
-            if (mappedChar) { wordText += mappedChar; }
-            else { errors.push({ token: clean, char: placeholder, pos: pos }); wordText += placeholder; }
-            pos++;
-          });
-          return wordText;
+        // Split by = and dash variants (en-dash U+2013, em-dash U+2014, hyphen)
+        // Spaces within tokens are preserved — NOT used as delimiters
+        const rawTokens = line.split(/[=–—-]/);
+        const decodedChars = [];
+        rawTokens.forEach(token => {
+          const trimmed = token.trim();
+          if (!trimmed) return;
+          // Strip internal whitespace for map lookup (spaces are just formatting in cipher text)
+          const clean = trimmed.replace(/\s+/g, '');
+          if (!clean) return;
+          // Direct match first, then fallback with doubled backslashes (KDL parser unescape workaround)
+          const mappedChar = map[clean] || map[clean.replace(/\\/g, "\\\\")];
+          if (mappedChar) { decodedChars.push(mappedChar); }
+          else { errors.push({ token: clean, char: placeholder, pos: pos }); decodedChars.push(placeholder); }
+          pos++;
         });
-        return decodedWords.join(" ");
+        return decodedChars.join(" ");
       });
 
       return { text: decodedLines.join("\n"), errors };

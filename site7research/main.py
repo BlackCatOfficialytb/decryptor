@@ -392,26 +392,27 @@ class Site7DesktopApp(ctk.CTk):
         placeholder = "\ufffd" if self.app_config.get("unicode_questionmark", False) else "?"
 
         for line in lines:
-            words = line.split("=")
-            decoded_words = []
-            for word in words:
-                # Split by hyphen, en-dash, em-dash, or whitespace
-                tokens = re.split(r"[\s\-\u2013\u2014]+", word.strip())
-                word_text = ""
-                for token in tokens:
-                    clean = token.strip()
-                    if not clean:
-                        continue
-                    # Direct match first, then fallback with doubled backslashes
-                    mapped_char = target.get(clean) or target.get(clean.replace("\\", "\\\\"))
-                    if mapped_char:
-                        word_text += mapped_char
-                    else:
-                        errors.append({"token": clean, "char": placeholder, "pos": pos})
-                        word_text += placeholder
-                    pos += 1
-                decoded_words.append(word_text)
-            decoded_lines.append(" ".join(decoded_words))
+            # Split by = and dash variants (en-dash U+2013, em-dash U+2014, hyphen)
+            # Spaces within tokens are preserved — NOT used as delimiters
+            raw_tokens = re.split(r"[=\u2013\u2014-]", line)
+            decoded_chars = []
+            for token in raw_tokens:
+                trimmed = token.strip()
+                if not trimmed:
+                    continue
+                # Strip internal whitespace for map lookup (spaces are formatting in cipher text)
+                clean = re.sub(r"\s+", "", trimmed)
+                if not clean:
+                    continue
+                # Direct match first, then fallback with doubled backslashes
+                mapped_char = target.get(clean) or target.get(clean.replace("\\", "\\\\"))
+                if mapped_char:
+                    decoded_chars.append(mapped_char)
+                else:
+                    errors.append({"token": clean, "char": placeholder, "pos": pos})
+                    decoded_chars.append(placeholder)
+                pos += 1
+            decoded_lines.append(" ".join(decoded_chars))
 
         return "\n".join(decoded_lines), errors
 
