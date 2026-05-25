@@ -14,7 +14,7 @@
     body { font-family: 'Fira Code', monospace; }
     #kdl-editor-container { width: 100%; height: 400px; border: 1px solid #292524; border-radius: 8px; overflow: hidden; }
     .error-count { font-variant-numeric: tabular-nums; }
-    /* Định dạng để hiển thị ASCII đều đặn và cân đối */
+    /* Định dạng để hiển thị ASCII đều đặn và căn chỉnh đúng tỉ lệ */
     #bad-apple-screen {
       font-family: 'Fira Code', monospace;
       line-height: 0.95;
@@ -164,6 +164,12 @@
             <span class="text-neutral-500 block uppercase font-bold text-[10px]">ARG Creator</span>
             <span class="text-emerald-400 font-bold text-sm">@NathSalias</span>
             <p class="text-neutral-600 text-[10px] mt-0.5">Project Series: Site7Research YouTube Space</p>
+          </div>
+          <!-- Youtube MV Credit -->
+          <div class="md:col-span-2 pt-2 border-t border-emerald-900/10">
+            <span class="text-neutral-500 block uppercase font-bold text-[10px]">Original Shadow Animation Video MV Source</span>
+            <span class="text-emerald-400 font-bold text-sm">Masayoshi Minoshima / nomico (Alstroemeria Records)</span>
+            <a href="https://www.youtube.com/watch?v=i41KoE0iMYU" target="_blank" rel="noopener noreferrer"><p class="text-neutral-600 text-[10px] mt-0.5">Title: "【東方】Bad Apple!! ＰＶ【影絵】" (Original Shadow Art PV)</p></a>
           </div>
         </div>
       </div>
@@ -325,7 +331,6 @@ content {
     //  Initialize KDL tables — localStorage -> default -> error
     // ============================================================
     function initTables() {
-      // 1. Try custom KDL from localStorage
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const result = parseKDL(saved);
@@ -337,7 +342,6 @@ content {
         }
       }
 
-      // 2. Fallback to default KDL
       const result = parseKDL(defaultKDL);
       if (result.success) {
         applyParseResult(result);
@@ -346,7 +350,6 @@ content {
         return;
       }
 
-      // 3. Fatal fallback error
       updateStatus("ERROR: Default table parse failed. Report this bug.", "text-red-500");
     }
 
@@ -681,6 +684,8 @@ content {
     let badAppleCanvas = null;
     let badAppleCtx = null;
     let badAppleAnimationId = null;
+    let fallbackLoopInterval = null;
+    let isProceduralFallback = false;
 
     // Kích thước lưới ASCII hiển thị
     const ASCII_WIDTH = 76;
@@ -720,13 +725,19 @@ content {
             </div>
           </div>
 
-          <div class="flex justify-center gap-4 relative z-10">
-            <button id="bad-apple-play-btn" onclick="toggleBadApplePlay()" class="bg-red-950 border border-red-800 text-red-400 px-6 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-40" disabled>
-              CONNECTING...
-            </button>
-            <button onclick="restoreCreditsTab()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 px-6 py-2 rounded-lg text-xs font-bold transition-all">
-              CLOSE PORTAL
-            </button>
+          <div class="flex flex-col items-center justify-center gap-2 relative z-10">
+            <div class="flex justify-center gap-4">
+              <button id="bad-apple-play-btn" onclick="toggleBadApplePlay()" class="bg-red-950 border border-red-800 text-red-400 px-6 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-40" disabled>
+                CONNECTING...
+              </button>
+              <button onclick="restoreCreditsTab()" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 px-6 py-2 rounded-lg text-xs font-bold transition-all">
+                CLOSE PORTAL
+              </button>
+            </div>
+            <!-- Credit gốc đi kèm giao diện game -->
+            <div class="text-[9px] text-red-700/60 mt-2">
+              Original Bad Apple Credit: <a href="https://www.youtube.com/watch?v=i41KoE0iMYU" target="_blank" rel="noopener noreferrer" class="underline hover:text-red-500">YouTube - [Alstroemeria Records]Bad Apple!! feat.nomico(Shadow Animation Version)[ACVS.008_Tr.00]</a>
+            </div>
           </div>
         </div>
       `;
@@ -735,18 +746,22 @@ content {
     }
 
     function loadBadAppleResources() {
-      // Đường dẫn nguồn video (Bạn có thể thay đổi đường dẫn này thành file "bad-apple.mp4" cục bộ của bạn)
-      const videoUrl = "https://archive.org/download/bad-apple-resources/bad-apple-360p.mp4";
+      // Chuyển hướng sang CDN trực tiếp của tệp MP4 của bạn trên GitHub để xử lý CORS hoàn toàn hợp lệ
+      const videoUrl = "https://raw.githubusercontent.com/BlackCatOfficialytb/decryptor/refs/heads/main/site7research/bad-apple.mp4";
+
+      isProceduralFallback = false;
 
       if (!badAppleVideo) {
         badAppleVideo = document.createElement('video');
         badAppleVideo.src = videoUrl;
+        // Bắt buộc yêu cầu CORS ẩn danh để được phép đọc byte canvas
+        badAppleVideo.setAttribute('crossOrigin', 'anonymous');
         badAppleVideo.crossOrigin = "anonymous";
         badAppleVideo.playsInline = true;
         badAppleVideo.loop = true;
-        badAppleVideo.muted = false; // Bật âm thanh
+        badAppleVideo.muted = false;
 
-        // Tạo canvas ẩn để chụp và phân tích điểm ảnh
+        // Canvas phụ để phân tích pixel màu
         badAppleCanvas = document.createElement('canvas');
         badAppleCanvas.width = ASCII_WIDTH;
         badAppleCanvas.height = ASCII_HEIGHT;
@@ -768,20 +783,21 @@ content {
       };
 
       badAppleVideo.onerror = function() {
-        if (progressPct) progressPct.innerText = "Error loading stream. Check connection or local file.";
+        console.warn("Unable to load video. Transitioning to procedural rendering.");
+        activateFallbackProceduralApple();
       };
 
-      // Buộc trình duyệt tiến hành tải trước luồng dữ liệu video
       badAppleVideo.load();
     }
 
     function renderBadAppleFrame() {
-      if (!badApplePlaying) return;
+      if (!badApplePlaying || isProceduralFallback) return;
 
-      // Vẽ khung hình video hiện tại lên canvas ẩn để giảm kích thước ảnh về lưới ASCII mong muốn
-      badAppleCtx.drawImage(badAppleVideo, 0, 0, ASCII_WIDTH, ASCII_HEIGHT);
-      
       try {
+        // Vẽ lại khung hình video hiện hành lên canvas
+        badAppleCtx.drawImage(badAppleVideo, 0, 0, ASCII_WIDTH, ASCII_HEIGHT);
+        
+        // Đọc mảng byte màu
         const imgData = badAppleCtx.getImageData(0, 0, ASCII_WIDTH, ASCII_HEIGHT);
         const pixels = imgData.data;
 
@@ -796,14 +812,13 @@ content {
             const g = pixels[idx+1];
             const b = pixels[idx+2];
             
-            // Tính toán độ sáng của điểm ảnh (Grayscale)
+            // Tính cường độ sáng trung bình của pixel màu
             const brightness = (r + g + b) / 3;
 
-            // Bad Apple là video đen-trắng, ngưỡng xám 120 là lý tưởng để tách vùng biên bóng đen
             if (brightness < 120) {
-              asciiFrame += " "; // Vùng nền tối là khoảng trống
+              asciiFrame += " "; // Phông tối là khoảng trắng trống
             } else {
-              // Vùng sáng vẽ bằng các ký tự chỉ định tuần hoàn
+              // Phông sáng là ký tự biến đổi tuần hoàn
               asciiFrame += asciiChars[charCounter % asciiChars.length];
               charCounter++;
             }
@@ -815,12 +830,69 @@ content {
         if (screen) {
           screen.innerText = asciiFrame;
         }
+
+        // Lặp vô hạn qua Animation Frame
+        badAppleAnimationId = requestAnimationFrame(renderBadAppleFrame);
       } catch (e) {
-        console.error("Canvas read error. Ensure proper CORS on the video URL.", e);
+        // Tự động kích hoạt cơ chế dự phòng cục bộ khi xảy ra lỗi bảo mật canvas (như lỗi CORS)
+        console.error("CORS security limitation or canvas read failure. Activating procedural backup.", e);
+        activateFallbackProceduralApple();
+      }
+    }
+
+    // Cơ chế khôi phục dự phòng ngoại tuyến: vẽ quả táo tuần hoàn chuyển động bằng ký tự /\\o-=
+    function activateFallbackProceduralApple() {
+      isProceduralFallback = true;
+      badApplePlaying = false;
+      if (badAppleAnimationId) cancelAnimationFrame(badAppleAnimationId);
+      if (badAppleVideo) badAppleVideo.pause();
+
+      const loadingEl = document.getElementById('bad-apple-loading');
+      if (loadingEl) loadingEl.classList.add('hidden');
+
+      const playBtn = document.getElementById('bad-apple-play-btn');
+      if (playBtn) {
+        playBtn.innerText = "PLAY PROCEDURAL LOOP";
+        playBtn.disabled = false;
+        playBtn.className = "bg-red-600 hover:bg-red-700 text-neutral-950 font-extrabold px-6 py-2 rounded-lg text-xs transition-all shadow-lg hover:shadow-red-950";
       }
 
-      // Đăng ký vòng lặp khung hình tiếp theo
-      badAppleAnimationId = requestAnimationFrame(renderBadAppleFrame);
+      const screen = document.getElementById('bad-apple-screen');
+      if (screen) {
+        screen.innerText = "STANDBY: Ready to render procedurally.";
+      }
+    }
+
+    let fallbackFrameIndex = 0;
+    function renderFallbackLoop() {
+      if (!badApplePlaying) return;
+
+      const chars = ["/", "\\", "o", "-", "="];
+      let frame = "";
+      const offset = Math.sin(fallbackFrameIndex * 0.1) * 4;
+      const appleY = ASCII_HEIGHT / 2 + Math.cos(fallbackFrameIndex * 0.15) * 2;
+
+      for (let y = 0; y < ASCII_HEIGHT; y++) {
+        let line = "";
+        for (let x = 0; x < ASCII_WIDTH; x++) {
+          const dx = (x - ASCII_WIDTH / 2 - offset) * 0.55;
+          const dy = (y - appleY) * 1.0;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          const isLeaf = (dy < -4 && dy > -8 && dx > -1 && dx < 4);
+          if (dist < 10 || isLeaf) {
+            line += chars[(x + y + fallbackFrameIndex) % chars.length];
+          } else {
+            line += " ";
+          }
+        }
+        frame += line + "\n";
+      }
+
+      const screen = document.getElementById('bad-apple-screen');
+      if (screen) screen.innerText = frame;
+
+      fallbackFrameIndex++;
     }
 
     function toggleBadApplePlay() {
@@ -829,22 +901,33 @@ content {
 
       if (badApplePlaying) {
         badApplePlaying = false;
-        if (badAppleAnimationId) cancelAnimationFrame(badAppleAnimationId);
-        if (badAppleVideo) badAppleVideo.pause();
         playBtn.innerText = "RESUME";
+
+        if (isProceduralFallback) {
+          if (fallbackLoopInterval) clearInterval(fallbackLoopInterval);
+        } else {
+          if (badAppleAnimationId) cancelAnimationFrame(badAppleAnimationId);
+          if (badAppleVideo) badAppleVideo.pause();
+        }
       } else {
         badApplePlaying = true;
-        if (badAppleVideo) {
-          badAppleVideo.play().catch(() => console.log("Audio or video context blocked. Trying dynamic load."));
-        }
-        renderBadAppleFrame();
         playBtn.innerText = "PAUSE";
+
+        if (isProceduralFallback) {
+          fallbackLoopInterval = setInterval(renderFallbackLoop, 33);
+        } else {
+          if (badAppleVideo) {
+            badAppleVideo.play().catch(() => console.log("Audio block active. Decoding stream..."));
+          }
+          renderBadAppleFrame();
+        }
       }
     }
 
     function restoreCreditsTab() {
       badApplePlaying = false;
       if (badAppleAnimationId) cancelAnimationFrame(badAppleAnimationId);
+      if (fallbackLoopInterval) clearInterval(fallbackLoopInterval);
       if (badAppleVideo) {
         badAppleVideo.pause();
         badAppleVideo.currentTime = 0;
