@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("green")
 
+# Storage file to persist custom tables
 STORAGE_FILE = os.path.join(os.path.expanduser("~"), ".site7research_custom_kdl.txt")
 
 VALID_ERROR_MODES = ["strict", "ignore", "replace", "space", "xmlchainreplace", "unicodereplace"]
@@ -33,7 +34,7 @@ content {
     }
     entry letter=3 {
         original "C"
-        code_a null
+        code_a r"\\o"
         code_b r"/\\"
         code_c r"/\\\o"
     }
@@ -47,25 +48,25 @@ content {
         original "E"
         code_a r"/"
         code_b r"/"
-        code_c r"//\\\"
+        code_c r"//\\\\"
     }
     entry letter=6 {
         original "F"
-        code_a null
+        code_a r"/\o"
         code_b r"/\o"
-        code_c r"//\\"
+        code_c r"//\\\"
     }
     entry letter=7 {
         original "G"
         code_a null
         code_b r"/\\o"
-        code_c r"//\"
+        code_c r"//\\"
     }
     entry letter=8 {
         original "H"
         code_a r"//\\" r"///\"
         code_b r"//\\"
-        code_c r"//"
+        code_c r"//\"
     }
     entry letter=9 {
         original "I"
@@ -95,25 +96,25 @@ content {
         original "M"
         code_a null
         code_b r"///\\"
-        code_c r"///\\\"
+        code_c r"///\\\\"
     }
     entry letter=14 {
         original "N"
         code_a null
         code_b r"///\"
-        code_c r"///\\"
+        code_c r"///\\\"
     }
     entry letter=15 {
         original "O"
         code_a r"///\"
         code_b r"///"
-        code_c r"///\"
+        code_c r"///\\"
     }
     entry letter=16 {
         original "P"
         code_a null
         code_b r"///\o"
-        code_c r"///"
+        code_c r"///\"
     }
     entry letter=17 {
         original "Q"
@@ -129,7 +130,7 @@ content {
     }
     entry letter=19 {
         original "S"
-        code_a null
+        code_a r"////\\"
         code_b r"////\"
         code_c r"///\\\o"
     }
@@ -141,27 +142,27 @@ content {
     }
     entry letter=21 {
         original "U"
-        code_a null
+        code_a r"/"
         code_b r"////\o"
-        code_c r"////\\\"
+        code_c r"////\\\\"
     }
     entry letter=22 {
         original "V"
         code_a null
         code_b r"////\\o"
-        code_c r"////\\"
+        code_c r"////\\\"
     }
     entry letter=23 {
         original "W"
         code_a null
         code_b r"/////\\"
-        code_c r"////\"
+        code_c r"////\\"
     }
     entry letter=24 {
         original "X"
         code_a null
         code_b r"/////\"
-        code_c r"////"
+        code_c r"////\"
     }
     entry letter=25 {
         original "Y"
@@ -228,10 +229,10 @@ class Site7DesktopApp(ctk.CTk):
         except Exception as e:
             return False, f"KDL parse error: {e}", {}, {"code_a": {}, "code_b": {}, "code_c": {}}, {}
 
-        # Parse config { ... }
-        config_node = next((n for n in doc if n.name == "config"), None)
+        # Parse config { ... } by safely accessing doc.nodes
+        config_node = next((n for n in doc.nodes if n.name == "config"), None)
         if config_node:
-            for child in config_node.children:
+            for child in config_node.nodes:
                 if child.name == "errors" and child.args:
                     val = str(child.args[0])
                     if val in VALID_ERROR_MODES:
@@ -239,7 +240,7 @@ class Site7DesktopApp(ctk.CTk):
                     else:
                         error_msg = f'Invalid config.errors="{val}". Valid: {", ".join(VALID_ERROR_MODES)}'
             # Parse unicode_questionmark
-            for child in config_node.children:
+            for child in config_node.nodes:
                 if child.name == "unicode_questionmark" and child.args:
                     val = child.args[0]
                     if isinstance(val, bool):
@@ -247,20 +248,20 @@ class Site7DesktopApp(ctk.CTk):
                     elif isinstance(val, str) and val.lower() in ("true", "false"):
                         new_config["unicode_questionmark"] = val.lower() == "true"
 
-        # Parse content { entry ... }
-        content_node = next((n for n in doc if n.name == "content"), None)
+        # Parse content { entry ... } by safely accessing doc.nodes
+        content_node = next((n for n in doc.nodes if n.name == "content"), None)
         if not content_node:
             error_msg = error_msg or 'No content { } block found in KDL.'
             return False, error_msg, {}, {"code_a": {}, "code_b": {}, "code_c": {}}, new_config
 
-        for entry in content_node.children:
+        for entry in content_node.nodes:
             if entry.name == "entry":
                 original = None
                 code_a_vals: List[str] = []
                 code_b_val = None
                 code_c_val = None
 
-                for child in entry.children:
+                for child in entry.nodes:
                     if child.name == "original":
                         original = str(child.args[0]).upper()
                     elif child.name == "code_a":
