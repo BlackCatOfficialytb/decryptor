@@ -1,3 +1,5 @@
+--- START OF FILE Paste May 26, 2026 - 8:21AM ---
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -206,7 +208,7 @@
     const STORAGE_KEY = "site7research_custom_kdl";
 
     // ============================================================
-    //  Default KDL (immutable reference)
+    //  Default KDL (immutable reference) using standard strings
     // ============================================================
     const defaultKDL = `config {
     errors "replace"
@@ -214,33 +216,39 @@
 }
 
 content {
-    entry letter=1 { original "A" code_a r"\\o" code_b r"\\o" code_c r"/\\o" }
-    entry letter=2 { original "B" code_a null code_b r"\\\\o" code_c r"/\\\\o" }
-    entry letter=3 { original "C" code_a null code_b r"/\\\\" code_c r"/\\\\\\o" }
-    entry letter=4 { original "D" code_a r"/\\" code_b r"/\\" code_c r"/\\\\\\\\o" }
-    entry letter=5 { original "E" code_a r"/" code_b r"/" code_c r"//\\\\\\" }
-    entry letter=6 { original "F" code_a null code_b r"/\\o" code_c r"//\\\\" }
-    entry letter=7 { original "G" code_a null code_b r"/\\\\o" code_c r"//\\" }
-    entry letter=8 { original "H" code_a r"//\\\\" r"///\\" code_b r"//\\\\" code_c r"//" }
-    entry letter=9 { original "I" code_a null code_b r"//\\" code_c r"//\\o" }
-    entry letter=10 { original "J" code_a null code_b r"//" code_c r"//\\\\o" }
-    entry letter=11 { original "K" code_a null code_b r"//\\o" code_c r"//\\\\\\o" }
-    entry letter=12 { original "L" code_a null code_b r"//\\\\o" code_c r"//\\\\\\\\o" }
-    entry letter=13 { original "M" code_a null code_b r"///\\\\" code_c r"///\\\\\\" }
-    entry letter=14 { original "N" code_a null code_b r"///\\" code_c r"///\\\\" }
-    entry letter=15 { original "O" code_a r"///\\" code_b r"///" code_c r"///\\" }
-    entry letter=16 { original "P" code_a null code_b r"///\\o" code_c r"///" }
-    entry letter=17 { original "Q" code_a null code_b r"///\\\\o" code_c r"///\\o" }
-    entry letter=18 { original "R" code_a r"///\\\\o" r"/\\\\o" code_b r"////\\\\" code_c r"///\\\\o" }
-    entry letter=19 { original "S" code_a null code_b r"////\\" code_c r"///\\\\\\o" }
-    entry letter=20 { original "T" code_a r"///\\\\" code_b r"////" code_c r"///\\\\\\\\o" }
-    entry letter=21 { original "U" code_a null code_b r"////\\o" code_c r"////\\\\\\" }
-    entry letter=22 { original "V" code_a null code_b r"////\\\\o" code_c r"////\\\\" }
-    entry letter=23 { original "W" code_a null code_b r"/////\\\\" code_c r"////\\" }
-    entry letter=24 { original "X" code_a null code_b r"/////\\" code_c r"////" }
-    entry letter=25 { original "Y" code_a r"/////\\o" code_b r"/////" code_c r"////\\o" }
-    entry letter=26 { original "Z" code_a null code_b r"/////\\o" code_c r"////\\\\o" }
+    entry letter=1 { original "A" code_a "\\\\o" code_b "\\\\o" code_c "/\\\\o" }
+    entry letter=2 { original "B" code_a null code_b "\\\\\\\\o" code_c "/\\\\\\\\o" }
+    entry letter=3 { original "C" code_a null code_b "/\\\\\\\\" code_c "/\\\\\\\\\\\\o" }
+    entry letter=4 { original "D" code_a "/\\\\o" code_b "/\\\\o" code_c "/\\\\\\\\\\\\\\\\o" }
+    entry letter=5 { original "E" code_a "/" code_b "/" code_c "//\\\\\\\\\\\\" }
+    entry letter=6 { original "F" code_a null code_b "/\\\\o" code_c "//\\\\\\\\" }
+    entry letter=7 { original "G" code_a null code_b "/\\\\\\\\o" code_c "//\\\\o" }
+    entry letter=8 { original "H" code_a "//\\\\\\\\" "///\\\\" code_b "//\\\\\\\\" code_c "//" }
+    entry letter=9 { original "I" code_a null code_b "//\\\\" code_c "//\\\\o" }
+    entry letter=10 { original "J" code_a null code_b "//" code_c "//\\\\\\\\o" }
+    entry letter=11 { original "K" code_a null code_b "//\\\\o" code_c "//\\\\\\\\\\\\o" }
+    entry letter=12 { original "L" code_a null code_b "//\\\\\\\\o" code_c "//\\\\\\\\\\\\\\\\o" }
+    entry letter=13 { original "M" code_a null code_b "///\\\\\\\\" code_c "///\\\\\\\\\\\\" }
+    entry letter=14 { original "N" code_a null code_b "///\\\\" code_c "///\\\\\\\\" }
+    entry letter=15 { original "O" code_a "///\\\\" code_b "///" code_c "///\\\\" }
+    entry letter=16 { original "P" code_a null code_b "///\\\\o" code_c "///" }
+    entry letter=17 { original "Q" code_a null code_b "///\\\\\\\\o" code_c "///\\\\o" }
+    entry letter=18 { original "R" code_a "///\\\\\\\\o" "/\\\\\\\\o" code_b "////\\\\\\\\\\\\" code_c "///\\\\\\\\o" }
+    entry letter=19 { original "S" code_a null code_b "////\\\\" code_c "///\\\\\\\\\\\\o" }
+    entry letter=20 { original "T" code_a "///\\\\\\\\" code_b "////" code_c "///\\\\\\\\\\\\\\\\o" }
+    entry letter=21 { original "U" code_a null code_b "////\\\\o" code_c "////\\\\\\\\\\\\" }
+    entry letter=22 { original "V" code_a null code_b "////\\\\\\\\o" code_c "////\\\\\\\\" }
+    entry letter=23 { original "W" code_a null code_b "/////\\\\\\\\" code_c "////\\\\" }
+    entry letter=24 { original "X" code_a null code_b "/////\\\\" code_c "////" }
+    entry letter=25 { original "Y" code_a "/////\\\\o" code_b "/////" code_c "////\\\\o" }
+    entry letter=26 { original "Z" code_a null code_b "/////\\\\o" code_c "////\\\\\\\\o" }
 }`;
+
+    // Helper to unescape backslash escape sequences in standard strings (e.g. \\ -> \)
+    function unescapeKDLString(str) {
+      if (!str) return null;
+      return str.replace(/\\(.)/g, "$1");
+    }
 
     // ============================================================
     //  KDL Parser — extracts config + content
@@ -290,13 +298,13 @@ content {
         let codeAValues = [];
         const codeAMatch = body.match(/code_a\s+([^\n\r]+)/);
         if (codeAMatch) {
-          const raw = [...codeAMatch[1].matchAll(/r"([^"]+)"/g)].map(m => m[1]);
+          const raw = [...codeAMatch[1].matchAll(/"([^"]+)"/g)].map(m => unescapeKDLString(m[1]));
           if (raw.length > 0) codeAValues = raw;
         }
-        const codeBMatch = body.match(/code_b\s+(?:r"([^"]+)"|null)/);
-        const codeBVal = (codeBMatch && codeBMatch[1]) ? codeBMatch[1] : null;
-        const codeCMatch = body.match(/code_c\s+(?:r"([^"]+)"|null)/);
-        const codeCVal = (codeCMatch && codeCMatch[1]) ? codeCMatch[1] : null;
+        const codeBMatch = body.match(/code_b\s+(?:"([^"]+)"|null)/);
+        const codeBVal = (codeBMatch && codeBMatch[1]) ? unescapeKDLString(codeBMatch[1]) : null;
+        const codeCMatch = body.match(/code_c\s+(?:"([^"]+)"|null)/);
+        const codeCVal = (codeCMatch && codeCMatch[1]) ? unescapeKDLString(codeCMatch[1]) : null;
 
         newEncrypt[original] = { code_a: codeAValues, code_b: codeBVal, code_c: codeCVal };
         codeAValues.forEach(v => { newDecrypt.code_a[v] = original; });
