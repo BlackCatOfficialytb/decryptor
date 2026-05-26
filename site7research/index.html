@@ -219,10 +219,10 @@ content {
     entry letter=1 { original "A" code_a "\\\\o" code_b "\\\\o" code_c "/\\\\o" }
     entry letter=2 { original "B" code_a null code_b "\\\\\\\\o" code_c "/\\\\\\\\o" }
     entry letter=3 { original "C" code_a null code_b "/\\\\\\\\" code_c "/\\\\\\\\\\\\o" }
-    entry letter=4 { original "D" code_a "/\\\\o" code_b "/\\\\o" code_c "/\\\\\\\\\\\\\\\\o" }
+    entry letter=4 { original "D" code_a "/\\\\o" code_b "/\\\\" code_c "/\\\\\\\\\\\\\\\\o" }
     entry letter=5 { original "E" code_a "/" code_b "/" code_c "//\\\\\\\\\\\\" }
     entry letter=6 { original "F" code_a null code_b "/\\\\o" code_c "//\\\\\\\\" }
-    entry letter=7 { original "G" code_a null code_b "/\\\\\\\\o" code_c "//\\\\o" }
+    entry letter=7 { original "G" code_a null code_b "/\\\\\\\\o" code_c "//\\\\" }
     entry letter=8 { original "H" code_a "//\\\\\\\\" "///\\\\" code_b "//\\\\\\\\" code_c "//" }
     entry letter=9 { original "I" code_a null code_b "//\\\\" code_c "//\\\\o" }
     entry letter=10 { original "J" code_a null code_b "//" code_c "//\\\\\\\\o" }
@@ -233,7 +233,7 @@ content {
     entry letter=15 { original "O" code_a "///\\\\" code_b "///" code_c "///\\\\" }
     entry letter=16 { original "P" code_a null code_b "///\\\\o" code_c "///" }
     entry letter=17 { original "Q" code_a null code_b "///\\\\\\\\o" code_c "///\\\\o" }
-    entry letter=18 { original "R" code_a "///\\\\\\\\o" "/\\\\\\\\o" code_b "////\\\\\\\\\\\\" code_c "///\\\\\\\\o" }
+    entry letter=18 { original "R" code_a "///\\\\\\\\o" "/\\\\\\\\o" code_b "////\\\\\\\\" code_c "///\\\\\\\\o" }
     entry letter=19 { original "S" code_a null code_b "////\\\\" code_c "///\\\\\\\\\\\\o" }
     entry letter=20 { original "T" code_a "///\\\\\\\\" code_b "////" code_c "///\\\\\\\\\\\\\\\\o" }
     entry letter=21 { original "U" code_a null code_b "////\\\\o" code_c "////\\\\\\\\\\\\" }
@@ -296,7 +296,7 @@ content {
         const original = origMatch[1].toUpperCase();
 
         let codeAValues = [];
-        const codeAMatch = body.match(/code_a\s+([^\n\r]+)/);
+        const codeAMatch = body.match(/code_a\s+((?:"[^"]+"\s*)+)/);
         if (codeAMatch) {
           const raw = [...codeAMatch[1].matchAll(/"([^"]+)"/g)].map(m => unescapeKDLString(m[1]));
           if (raw.length > 0) codeAValues = raw;
